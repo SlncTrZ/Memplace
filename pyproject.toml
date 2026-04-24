@@ -33,6 +33,10 @@ dependencies = [
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/milla-jovovich/mempalace"
+Repository = "https://github.com/milla-jovovich/mempalace"
 "Bug Tracker" = "https://github.com/milla-jovovich/mempalace/issues"
 
 [project.scripts]

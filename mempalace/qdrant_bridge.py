@@ -9,7 +9,6 @@ Topic: mempalace_qdrant_integration
 Last Updated: 2026-04-24
 """
 
-import json
 import logging
 import os
 import uuid
