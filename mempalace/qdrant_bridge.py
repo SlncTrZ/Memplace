@@ -1,40 +1,30 @@
-"""qdrant_bridge — Qdrant 6-Wing Palace backend for MemPalace MCP.
+"""qdrant_bridge — Qdrant 6-Wing Palace backend for MemPalace.
 
-Adds Qdrant-backed tools alongside existing ChromaDB tools (non-breaking).
-MeiLin's scripts (6wing_auto_retrieval.py) become unnecessary once these
-tools are active.
+All knowledge stored in Qdrant vector database via REST API.
+6 Wings: tcdserver, openclaw, robotics, code_chronicles, omniscience_wiki, conversation.
 
 Wing: openclaw
-Topic: mempalace_qdrant_integration
+Topic: mempalace_qdrant
 Last Updated: 2026-04-24
 """
 
 import logging
-import os
 import uuid
 from datetime import datetime
 from typing import Optional
 
 import requests
 
+from .config import (
+    QDRANT_URL,
+    QDRANT_API_KEY,
+    OLLAMA_URL,
+    EMBED_MODEL,
+    EMBED_DIMENSION,
+    WING_COLLECTIONS,
+)
+
 logger = logging.getLogger("mempalace_mcp")
-
-# ==================== CONFIGURATION ====================
-
-QDRANT_URL = os.environ.get("QDRANT_URL", "http://192.168.1.227:6333")
-QDRANT_API_KEY = os.environ.get("QDRANT_API_KEY", "wQ72uGxOv1kpX5ETBo1FEuKeYWf8ytac11cJIcOg")
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://ollama:11434")
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "nomic-embed-text:latest")
-EMBED_DIMENSION = 768
-
-WING_COLLECTIONS = {
-    "tcdserver": "meilin_tcdserver",
-    "openclaw": "meilin_openclaw",
-    "robotics": "meilin_robotics",
-    "code_chronicles": "meilin_code_chronicles",
-    "omniscience_wiki": "meilin_omniscience_wiki",
-    "conversation": "meilin_conversation",
-}
 
 # ==================== LOW-LEVEL HELPERS ====================
 
@@ -49,7 +39,9 @@ def _qdrant_headers():
 def _qdrant_get(path: str, timeout: int = 10):
     """GET request to Qdrant REST API."""
     try:
-        resp = requests.get(f"{QDRANT_URL}{path}", headers=_qdrant_headers(), timeout=timeout)
+        resp = requests.get(
+            f"{QDRANT_URL}{path}", headers=_qdrant_headers(), timeout=timeout
+        )
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
@@ -60,7 +52,9 @@ def _qdrant_get(path: str, timeout: int = 10):
 def _qdrant_post(path: str, data: dict, timeout: int = 30):
     """POST request to Qdrant REST API."""
     try:
-        resp = requests.post(f"{QDRANT_URL}{path}", headers=_qdrant_headers(), json=data, timeout=timeout)
+        resp = requests.post(
+            f"{QDRANT_URL}{path}", headers=_qdrant_headers(), json=data, timeout=timeout
+        )
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
@@ -71,7 +65,9 @@ def _qdrant_post(path: str, data: dict, timeout: int = 30):
 def _qdrant_put(path: str, data: dict, timeout: int = 30):
     """PUT request to Qdrant REST API."""
     try:
-        resp = requests.put(f"{QDRANT_URL}{path}", headers=_qdrant_headers(), json=data, timeout=timeout)
+        resp = requests.put(
+            f"{QDRANT_URL}{path}", headers=_qdrant_headers(), json=data, timeout=timeout
+        )
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
@@ -95,7 +91,8 @@ def get_embedding(text: str) -> Optional[list]:
         embedding = result.get("embedding")
         if embedding and len(embedding) == EMBED_DIMENSION:
             return embedding
-        logger.warning(f"Embedding dimension mismatch: got {len(embedding) if embedding else 0}, expected {EMBED_DIMENSION}")
+        got = len(embedding) if embedding else 0
+        logger.warning(f"Embedding dimension mismatch: got {got}, expected {EMBED_DIMENSION}")
         return None
     except Exception as e:
         logger.error(f"Embedding generation failed: {e}")
@@ -222,7 +219,7 @@ def tool_qdrant_store(
     entity_type: str = "concept",
     importance: str = "medium",
 ):
-    """Store knowledge into 6-Wing Qdrant Palace with Knowledge Evolution metadata."""
+    """Store knowledge into 6-Wing Qdrant Palace with metadata."""
     if not content or len(content.strip()) < 10:
         return {"error": "Content too short (min 10 chars)"}
 
@@ -268,7 +265,7 @@ def tool_qdrant_store(
     )
 
     if resp and "result" in resp:
-        logger.info(f"Qdrant store: {wing}/{topic} → {point_id}")
+        logger.info(f"Qdrant store: {wing}/{topic} -> {point_id}")
         return {
             "success": True,
             "point_id": point_id,
@@ -279,87 +276,3 @@ def tool_qdrant_store(
         }
     else:
         return {"success": False, "error": "Qdrant write failed", "detail": str(resp)}
-
-
-# ==================== TOOL REGISTRY ====================
-
-QDRANT_TOOLS = {
-    "mempalace_qdrant_status": {
-        "description": (
-            "6-Wing Qdrant Palace overview — collection sizes, vector counts, index status. "
-            "This is the Qdrant-backed palace (14k+ points), separate from the ChromaDB drawers."
-        ),
-        "input_schema": {"type": "object", "properties": {}},
-        "handler": tool_qdrant_status,
-    },
-    "mempalace_qdrant_search": {
-        "description": (
-            "Semantic search across 6-Wing Qdrant Palace (meilin_* collections). "
-            "Uses Ollama nomic-embed-text embeddings. Searches all wings unless 'wing' filter is set. "
-            "This searches the same data that Cline MCP (meilin_knowledge) writes to."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Search query — keywords or natural language question",
-                    "maxLength": 500,
-                },
-                "wing": {
-                    "type": "string",
-                    "description": "Filter by wing: tcdserver|openclaw|robotics|code_chronicles|omniscience_wiki|conversation (optional)",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Max results (default 5, max 50)",
-                    "minimum": 1,
-                    "maximum": 50,
-                },
-                "score_threshold": {
-                    "type": "number",
-                    "description": "Minimum similarity score 0-1 (default 0.3)",
-                },
-            },
-            "required": ["query"],
-        },
-        "handler": tool_qdrant_search,
-    },
-    "mempalace_qdrant_store": {
-        "description": (
-            "Store knowledge into 6-Wing Qdrant Palace with metadata. "
-            "Compatible with Cline MCP (meilin_knowledge) format — same collections, same payload structure."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string",
-                    "description": "Content to store",
-                },
-                "wing": {
-                    "type": "string",
-                    "description": "Target wing: tcdserver|openclaw|robotics|code_chronicles|omniscience_wiki|conversation (default: openclaw)",
-                },
-                "topic": {
-                    "type": "string",
-                    "description": "Topic tag (default: general)",
-                },
-                "entity_name": {
-                    "type": "string",
-                    "description": "Entity name (optional)",
-                },
-                "entity_type": {
-                    "type": "string",
-                    "description": "Entity type: function|class|concept|skill|config (default: concept)",
-                },
-                "importance": {
-                    "type": "string",
-                    "description": "Importance: high|medium|low (default: medium)",
-                },
-            },
-            "required": ["content"],
-        },
-        "handler": tool_qdrant_store,
-    },
-}
