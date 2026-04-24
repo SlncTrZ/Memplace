@@ -38,6 +38,7 @@ from .searcher import search_memories
 from .palace_graph import traverse, find_tunnels, graph_stats
 
 from .knowledge_graph import KnowledgeGraph
+from .qdrant_bridge import QDRANT_TOOLS
 
 logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)
 logger = logging.getLogger("mempalace_mcp")
@@ -1394,6 +1395,9 @@ TOOLS = {
     },
 }
 
+
+# Merge Qdrant 6-Wing tools into TOOLS registry (non-breaking addition)
+TOOLS.update(QDRANT_TOOLS)
 
 SUPPORTED_PROTOCOL_VERSIONS = [
     "2025-11-25",
