@@ -17,6 +17,7 @@ from .qdrant_bridge import (
     tool_qdrant_status,
     tool_qdrant_search,
     tool_qdrant_store,
+    tool_qdrant_knowledge_store,
     WING_COLLECTIONS,
 )
 from .config import QDRANT_URL, OLLAMA_URL, EMBED_MODEL
@@ -334,13 +335,14 @@ def dispatch_tool(name, arguments):
         ))
 
     if name == "mempalace_knowledge_store":
-        return _tool_result(tool_qdrant_store(
+        return _tool_result(tool_qdrant_knowledge_store(
             content=arguments.get("content", ""),
             wing=arguments.get("wing", "openclaw"),
             topic=arguments.get("topic", "general"),
             entity_name=arguments.get("entity_name"),
             entity_type=arguments.get("entity_type", "concept"),
             importance=arguments.get("importance", "medium"),
+            change_reason=arguments.get("change_reason"),
         ))
 
     if name == "mempalace_knowledge_search":

@@ -276,3 +276,143 @@ def tool_qdrant_store(
         }
     else:
         return {"success": False, "error": "Qdrant write failed", "detail": str(resp)}
+
+
+def tool_qdrant_knowledge_store(
+    content: str,
+    wing: str = "openclaw",
+    topic: str = "general",
+    entity_name: str = None,
+    entity_type: str = "concept",
+    importance: str = "medium",
+    change_reason: str = None,
+):
+    """Store knowledge with Knowledge Evolution — soft-deprecates old versions.
+
+    If an active point with the same entity_name + wing exists, it gets
+    soft-deprecated (status='deprecated') before the new version is stored.
+    Max 2 deprecated versions retained per entity.
+    """
+    if not content or len(content.strip()) < 10:
+        return {"error": "Content too short (min 10 chars)"}
+
+    collection_name = _resolve_collection(wing)
+    if not collection_name:
+        return {"error": f"Unknown wing: {wing}. Available: {list(WING_COLLECTIONS.keys())}"}
+
+    # Find existing active versions of this entity
+    existing_version = 1
+    existing_ids_to_deprecate = []
+
+    if entity_name:
+        # Search for existing entries with same entity_name
+        search_data = {
+            "vector": get_embedding(content) or [],
+            "limit": 20,
+            "with_payload": True,
+            "with_vector": False,
+        }
+        # Use filter to find same entity
+        search_data["filter"] = {
+            "must": [
+                {"key": "metadata.entity_name", "match": {"value": entity_name}},
+                {"key": "metadata.wing", "match": {"value": wing}},
+                {"key": "metadata.status", "match": {"value": "active"}},
+            ]
+        }
+        # Need embedding for search
+        embedding = get_embedding(content)
+        if not embedding:
+            return {"error": "Failed to generate embedding. Check Ollama connectivity."}
+        search_data["vector"] = embedding
+
+        resp = _qdrant_post(
+            f"/collections/{collection_name}/points/scroll",
+            {
+                "filter": {
+                    "must": [
+                        {"key": "metadata.entity_name", "match": {"value": entity_name}},
+                        {"key": "metadata.wing", "match": {"value": wing}},
+                        {"key": "metadata.status", "match": {"value": "active"}},
+                    ]
+                },
+                "limit": 10,
+                "with_payload": True,
+                "with_vector": False,
+            },
+        )
+
+        if resp and "result" in resp:
+            points = resp["result"].get("points", [])
+            for pt in points:
+                meta = pt.get("payload", {}).get("metadata", {})
+                existing_version = max(existing_version, meta.get("version", 0))
+                existing_ids_to_deprecate.append(pt["id"])
+
+    # Soft-deprecate old active versions
+    for old_id in existing_ids_to_deprecate:
+        _qdrant_post(
+            f"/collections/{collection_name}/points/payload",
+            {
+                "points": [old_id],
+                "payload": {
+                    "metadata.status": "deprecated",
+                    "metadata.deprecated_at": datetime.now().isoformat(),
+                },
+            },
+        )
+
+    # Store new version
+    embedding = embedding if entity_name else get_embedding(content)
+    if not embedding:
+        return {"error": "Failed to generate embedding. Check Ollama connectivity."}
+
+    point_id = str(uuid.uuid4())
+    now = datetime.now().isoformat()
+
+    payload = {
+        "content": content[:2000],
+        "metadata": {
+            "wing": wing,
+            "topic": topic,
+            "entity_type": entity_type,
+            "entity_name": entity_name or "",
+            "importance": importance,
+            "version": existing_version + 1,
+            "status": "active",
+            "source": "mempalace_mcp",
+            "created_at": now,
+            "change_reason": change_reason or "",
+            "parent_ids": existing_ids_to_deprecate[-2:],  # Keep last 2 deprecated refs
+        },
+    }
+
+    data = {
+        "points": [
+            {
+                "id": point_id,
+                "vector": embedding,
+                "payload": payload,
+            }
+        ]
+    }
+
+    resp = _qdrant_put(
+        f"/collections/{collection_name}/points",
+        data,
+    )
+
+    if resp and "result" in resp:
+        logger.info(f"Qdrant knowledge_store: {wing}/{topic} v{existing_version + 1} -> {point_id}")
+        return {
+            "success": True,
+            "point_id": point_id,
+            "wing": wing,
+            "collection": collection_name,
+            "topic": topic,
+            "version": existing_version + 1,
+            "deprecated_count": len(existing_ids_to_deprecate),
+            "stored_at": now,
+        }
+    else:
+        return {"success": False, "error": "Qdrant write failed", "detail": str(resp)}
