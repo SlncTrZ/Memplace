@@ -13,14 +13,11 @@ import sys
 
 from .version import __version__
 from .qdrant_bridge import (
-    get_embedding,
     tool_qdrant_status,
     tool_qdrant_search,
     tool_qdrant_store,
     tool_qdrant_knowledge_store,
-    WING_COLLECTIONS,
 )
-from .config import QDRANT_URL, OLLAMA_URL, EMBED_MODEL
 
 # Protocol versions we support (MCP spec)
 SUPPORTED_PROTOCOL_VERSIONS = ["2025-11-25", "2025-03-26"]
@@ -309,7 +306,7 @@ def _error_result(code, message):
     return {"error": {"code": code, "message": message}}
 
 
-def dispatch_tool(name, arguments):
+def dispatch_tool(name, arguments):  # noqa: C901
     """Dispatch a tool call to the appropriate handler."""
     arguments = arguments or {}
 
@@ -448,7 +445,7 @@ def handle_request(msg):
         result = dispatch_tool(tool_name, arguments)
         if "error" in result:
             return {"jsonrpc": "2.0", "id": msg_id, "error": result["error"]}
-        return {"jsonrpc": "2.0", "id": msg_id, "result": result["result"]}
+        return {"jsonrpc": "2.0", "id": msg_id, "result": result}
 
     # Unknown method
     return {"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32601, "message": f"Method not found: {method}"}}
