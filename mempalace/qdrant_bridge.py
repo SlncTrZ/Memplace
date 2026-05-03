@@ -351,16 +351,27 @@ def tool_qdrant_knowledge_store(
 
     # Soft-deprecate old active versions
     for old_id in existing_ids_to_deprecate:
-        _qdrant_post(
-            f"/collections/{collection_name}/points/payload",
-            {
-                "points": [old_id],
-                "payload": {
-                    "metadata.status": "deprecated",
-                    "metadata.deprecated_at": datetime.now().isoformat(),
-                },
-            },
+        # Fetch current payload by point ID
+        get_resp = _qdrant_post(
+            f"/collections/{collection_name}/points",
+            {"ids": [old_id], "with_payload": True, "with_vector": False},
         )
+        if get_resp and "result" in get_resp:
+            result = get_resp["result"]
+            pts = result.get("points", []) if isinstance(result, dict) else (result if isinstance(result, list) else [])
+            if pts:
+                old_meta = pts[0].get("payload", {}).get("metadata", {})
+                old_meta["status"] = "deprecated"
+                old_meta["deprecated_at"] = datetime.now().isoformat()
+                # Use POST /points/payload with full metadata object
+                _qdrant_post(
+                    f"/collections/{collection_name}/points/payload",
+                    {"points": [old_id], "payload": {"metadata": old_meta}},
+                )
+            else:
+                logger.warning(f"No points found for ID {old_id[:12]}...")
+        else:
+            logger.warning(f"Failed to fetch point {old_id[:12]}... response: {get_resp}")
 
     # Store new version
     embedding = embedding if entity_name else get_embedding(content)
