@@ -1,11 +1,12 @@
-"""qdrant_bridge — Qdrant 6-Wing Palace backend for MemPalace.
+"""qdrant_bridge — Qdrant Multi-Wing Palace backend for MemPalace.
 
 All knowledge stored in Qdrant vector database via REST API.
-6 Wings: tcdserver, openclaw, robotics, code_chronicles, omniscience_wiki, conversation.
+Wings count depends on Qdrant collections (dynamic, user-configurable).
+Default wings: tcdserver, openclaw, robotics, code_chronicles, omniscience_wiki, conversation.
 
 Wing: openclaw
 Topic: mempalace_qdrant
-Last Updated: 2026-04-24
+Last Updated: 2026-05-09
 """
 
 import logging
@@ -110,7 +111,7 @@ def _resolve_collection(wing: str = None) -> str:
 
 
 def tool_qdrant_status():
-    """Overview of 6-Wing Qdrant Palace — collection sizes and config."""
+    """Overview of Multi-Wing Qdrant Palace — collection sizes and config."""
     result = {
         "backend": "qdrant",
         "qdrant_url": QDRANT_URL,
@@ -149,7 +150,7 @@ def tool_qdrant_search(
     limit: int = 5,
     score_threshold: float = 0.3,
 ):
-    """Semantic search across 6-Wing Qdrant Palace. Uses Ollama embeddings."""
+    """Semantic search across Multi-Wing Qdrant Palace. Uses Ollama embeddings."""
     if not query or len(query.strip()) < 3:
         return {"error": "Query too short (min 3 chars)"}
 
@@ -219,7 +220,7 @@ def tool_qdrant_store(
     entity_type: str = "concept",
     importance: str = "medium",
 ):
-    """Store knowledge into 6-Wing Qdrant Palace with metadata."""
+    """Store knowledge into Multi-Wing Qdrant Palace with metadata."""
     if not content or len(content.strip()) < 10:
         return {"error": "Content too short (min 10 chars)"}
 
@@ -289,6 +290,7 @@ def tool_qdrant_knowledge_store(
 ):
     """Store knowledge with Knowledge Evolution — soft-deprecates old versions.
 
+    Stores in Multi-Wing Palace (wings depend on Qdrant collections).
     If an active point with the same entity_name + wing exists, it gets
     soft-deprecated (status='deprecated') before the new version is stored.
     Max 2 deprecated versions retained per entity.

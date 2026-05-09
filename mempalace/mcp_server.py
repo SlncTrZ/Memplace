@@ -1,11 +1,11 @@
-"""mcp_server — 6-Wing Palace MCP Server (Qdrant-only).
+"""mcp_server — Multi-Wing Palace MCP Server (Qdrant-only).
 
 Exposes tools for knowledge management via stdio JSON-RPC.
-No ChromaDB dependency.
+No ChromaDB dependency. Wings count depends on Qdrant collections.
 
 Wing: openclaw
 Topic: mempalace_qdrant
-Last Updated: 2026-04-24
+Last Updated: 2026-05-09
 """
 
 import json
@@ -28,17 +28,18 @@ TOOL_DEFINITIONS = [
     {
         "name": "mempalace_status",
         "description": (
-            "6-Wing Palace overview — collection sizes, vector counts, index status. "
-            "Shows all 6 wings: tcdserver, openclaw, robotics, code_chronicles, "
-            "omniscience_wiki, conversation."
+            "Multi-Wing Palace overview — collection sizes, vector counts, index status. "
+            "Shows all wings available in Qdrant (dynamic, user-configurable). "
+            "Default: tcdserver, openclaw, robotics, code_chronicles, omniscience_wiki, conversation."
         ),
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "mempalace_search",
         "description": (
-            "Semantic search across 6-Wing Palace (meilin_* Qdrant collections). "
-            "Uses Ollama nomic-embed-text embeddings. Searches all wings unless filtered."
+            "Semantic search across Multi-Wing Palace (meilin_* Qdrant collections). "
+            "Uses Ollama nomic-embed-text embeddings. Searches all wings unless filtered. "
+            "Available wings depend on Qdrant collections."
         ),
         "inputSchema": {
             "type": "object",
@@ -50,7 +51,7 @@ TOOL_DEFINITIONS = [
                 },
                 "wing": {
                     "type": "string",
-                    "description": "Filter: tcdserver|openclaw|robotics|code_chronicles|omniscience_wiki|conversation",
+                    "description": "Filter by wing name (optional, depends on available wings)",
                 },
                 "limit": {
                     "type": "integer",
@@ -69,8 +70,8 @@ TOOL_DEFINITIONS = [
     {
         "name": "mempalace_store",
         "description": (
-            "Store knowledge into 6-Wing Palace with metadata. "
-            "Compatible with Cline MCP (meilin_knowledge) format."
+            "Store knowledge into Multi-Wing Palace with metadata. "
+            "Wings depend on Qdrant collections. Compatible with Cline MCP (meilin_knowledge) format."
         ),
         "inputSchema": {
             "type": "object",
@@ -106,8 +107,8 @@ TOOL_DEFINITIONS = [
     {
         "name": "mempalace_knowledge_store",
         "description": (
-            "Store knowledge into 5-Wing Palace with Knowledge Evolution. "
-            "Auto-classifies, embeds, soft-deletes old versions."
+            "Store knowledge into Multi-Wing Palace with Knowledge Evolution. "
+            "Auto-classifies, embeds, soft-deletes old versions. Wings depend on Qdrant collections."
         ),
         "inputSchema": {
             "type": "object",
@@ -118,7 +119,7 @@ TOOL_DEFINITIONS = [
                 },
                 "wing": {
                     "type": "string",
-                    "description": "Wing: tcdserver|openclaw|robotics|code_chronicles|omniscience_wiki",
+                    "description": "Wing name (depends on available Qdrant collections)",
                 },
                 "topic": {
                     "type": "string",
@@ -147,7 +148,7 @@ TOOL_DEFINITIONS = [
     {
         "name": "mempalace_knowledge_search",
         "description": (
-            "Semantic search across 5 Wings. Returns results with score, wing, topic, version."
+            "Semantic search across Multi-Wing Palace. Returns results with score, wing, topic, version."
         ),
         "inputSchema": {
             "type": "object",

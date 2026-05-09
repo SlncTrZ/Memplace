@@ -1,4 +1,4 @@
-# MemPalace — 6-Wing Memory Palace
+# MemPalace — Multi-Wing Memory Palace
 
 Qdrant-backed knowledge management cho AI assistants, exposed qua MCP (Model Context Protocol).
 
@@ -16,12 +16,21 @@ Qdrant-backed knowledge management cho AI assistants, exposed qua MCP (Model Con
 │           get_embedding()                   │
 ├────────────────────┬────────────────────────┤
 │    Ollama API      │    Qdrant REST API     │
-│  nomic-embed-text  │  6 collections         │
-│  768 dimensions    │  meilin_* prefix       │
+│  nomic-embed-text  │  Multi-Wing collections │
+│  768 dimensions    │  (dynamic, user-config) │
 └────────────────────┴────────────────────────┘
 ```
 
-### 6 Wings
+### Wings Architecture
+
+**Multi-Wing Palace**: Số lượng wings phụ thuộc vào Qdrant collections có sẵn.
+
+Users có thể:
+- Sử dụng default 6 wings: tcdserver, openclaw, robotics, code_chronicles, omniscience_wiki, conversation
+- Custom wings bằng cách tạo Qdrant collections với prefix `meilin_*`
+- Config qua environment variable `WING_COLLECTIONS` (JSON format)
+
+**Default Wings:**
 
 | Wing | Collection | Purpose |
 |------|-----------|---------|
@@ -38,7 +47,7 @@ Qdrant-backed knowledge management cho AI assistants, exposed qua MCP (Model Con
 
 | Tool | Description |
 |------|-------------|
-| `mempalace_status` | Overview all 6 wings (points, vectors, indexed, status) |
+| `mempalace_status` | Overview all wings (points, vectors, indexed, status) - dynamic based on Qdrant |
 
 ### Search & Store
 
@@ -47,7 +56,7 @@ Qdrant-backed knowledge management cho AI assistants, exposed qua MCP (Model Con
 | `mempalace_search` | `query`, `wing?`, `limit?`(1-50), `score_threshold?`(0-1) | Semantic search across wings |
 | `mempalace_store` | `content`, `wing?`(default=openclaw), `topic?`, `entity_name?`, `entity_type?`, `importance?` | Store knowledge |
 | `mempalace_knowledge_store` | `content`, `wing`, `topic`, `entity_name?`, `entity_type?`, `importance?`, `change_reason?` | Store with Knowledge Evolution |
-| `mempalace_knowledge_search` | `query`, `wing?`, `topic?`, `limit?` | Search across 5 wings (excludes conversation) |
+| `mempalace_knowledge_search` | `query`, `wing?`, `topic?`, `limit?` | Search across wings (depends on config) |
 | `knowledge_timeline` | `wing`, `entity_name?`, `source_file?` | View entity evolution history |
 
 ### Conversation
@@ -75,9 +84,46 @@ pip install -e ".[dev]"
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `QDRANT_URL` | `http://192.168.1.227:6333` | Qdrant server URL |
-| `QDRANT_API_KEY` | (required) | Qdrant API key |
+| `QDRANT_API_KEY` | (required) | Qdrant API key - **NEVER commit to git** |
 | `OLLAMA_URL` | `http://ollama:11434` | Ollama server URL |
 | `EMBED_MODEL` | `nomic-embed-text:latest` | Embedding model name |
+| `WING_COLLECTIONS` | (auto-fetch) | JSON string mapping wings to Qdrant collections |
+
+### Security: Protect API Keys
+
+**CRITICAL: Khi public/commit GitHub repo:**
+
+1. **Luôn dùng `.env` file** (đã có trong `.gitignore`)
+2. **Không bao giờ hardcode API keys** trong code
+3. **Chỉ commit `.env.example`** với placeholder values
+4. **Verifying `.gitignore`** contains:
+   ```
+   .env
+   *.key
+   *_secrets.json
+   ```
+
+5. **Pre-commit hook (recommended):**
+   ```bash
+   # .git/hooks/pre-commit
+   if git diff --cached --name-only | grep -E '\.(py|json|yaml|yml)$'; then
+       if git diff --cached | grep -E 'api[_-]?key.*[=:][[:space:]]*['\''"'][^'\''"]+['\''"']'; then
+           echo "ERROR: API key detected in staged files!"
+           exit 1
+       fi
+   fi
+   ```
+
+### Custom Wings
+
+Tùy chỉnh wings bằng environment variable:
+
+```bash
+export WING_COLLECTIONS='{"wing1": "meilin_wing1", "wing2": "meilin_wing2"}'
+python -m mempalace
+```
+
+Hoặc tạo collections trong Qdrant với prefix `meilin_*` - MemPlace sẽ auto-detect.
 
 ## Payload Structure
 
@@ -116,7 +162,7 @@ python -m pytest tests/ -v
 
 | Script | Purpose |
 |--------|---------|
-| `check_qdrant.py` | Check 6 collections status |
+| `check_qdrant.py` | Check all collections status (dynamic wings) |
 | `test_search.py` | Manual semantic search test |
 | `test_embed.py` | Test single point embedding |
 | `embed_all.py` | Full embedding pipeline |

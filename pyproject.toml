@@ -1,7 +1,7 @@
 [project]
 name = "mempalace"
-version = "4.0.0"
-description = "6-Wing Memory Palace — Qdrant-backed knowledge management for AI assistants"
+version = "5.0.0"
+description = "Multi-Wing Memory Palace — Qdrant-backed knowledge management for AI assistants"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"

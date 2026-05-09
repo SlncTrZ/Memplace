@@ -12,4 +12,18 @@ htmlcov/
 .venv/
 venv/
 .env
+.env.local
+.env.*.local
 mempalace.log
+
+# Security: API keys and secrets
+*.key
+*_secrets.json
+secrets/
+credentials/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
