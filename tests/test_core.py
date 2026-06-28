@@ -91,9 +91,10 @@ class TestVersion:
         from mempalace.version import __version__
 
         import os
+
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         with open(os.path.join(root, "pyproject.toml"), encoding="utf-8") as f:
-                pyproject = f.read()
+            pyproject = f.read()
         match = re.search(r'version\s*=\s*"([^"]+)"', pyproject)
         assert match is not None
         assert match.group(1) == __version__
@@ -120,10 +121,12 @@ class TestMCPTools:
 
     def test_mcp_tools_module_has_30_tools(self):
         from mempalace.mcp_tools import TOOLS
+
         assert len(TOOLS) == 30
 
     def test_mcp_tools_tool_has_handler_and_schema(self):
         from mempalace.mcp_tools import TOOLS
+
         for name, tool in TOOLS.items():
             assert "description" in tool, f"{name} missing description"
             assert "input_schema" in tool, f"{name} missing input_schema"
@@ -135,11 +138,13 @@ class TestSearcher:
 
     def test_hybrid_rank_empty(self):
         from mempalace.searcher import _hybrid_rank
+
         result = _hybrid_rank([], "test")
         assert result == []
 
     def test_hybrid_rank_with_results(self):
         from mempalace.searcher import _hybrid_rank
+
         results = [
             {"text": "test about MemPalace architecture", "similarity": 0.5},
             {"text": "something else entirely", "similarity": 0.3},
@@ -150,6 +155,7 @@ class TestSearcher:
 
     def test_metric_for_collection_none(self):
         from mempalace.searcher import _metric_for_collection
+
         result = _metric_for_collection(None)
         assert isinstance(result, str)
         assert result in ("cosine", "l2", "dot", "cosine_prenormalized")
@@ -160,6 +166,7 @@ class TestPalace:
 
     def test_skip_dirs_are_set(self):
         from mempalace.palace import SKIP_DIRS
+
         assert ".git" in SKIP_DIRS
         assert "node_modules" in SKIP_DIRS
         assert "__pycache__" in SKIP_DIRS

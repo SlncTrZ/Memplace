@@ -8,6 +8,8 @@ Normalizes format, chunks by exchange pair (Q+A = one unit), files to palace.
 Same palace as project mining. Different ingest strategy.
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import logging
@@ -15,7 +17,7 @@ import stat
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
-from typing import Optional
+from typing import Any
 
 from .collision_scan import assert_no_collisions
 from .ids import ID_RECIPE, make_convo_drawer_id, make_convo_sentinel_id
@@ -105,7 +107,7 @@ def _is_regular_source_file(filepath: Path, root: Path) -> bool:
                 pass
 
 
-def _register_file(collection, source_file: str, wing: str, agent: str, extract_mode: str):
+def _register_file(collection, source_file: str, wing: str, agent: str, extract_mode: str) -> None:
     """Write a sentinel so file_already_mined() returns True for 0-chunk files.
 
     Without this, files that normalize to nothing or produce zero chunks are
@@ -166,9 +168,9 @@ def _source_file_delete_ids(collection, source_file: str, extract_mode: str) -> 
 
 def chunk_exchanges(
     content: str,
-    chunk_size: int = None,
-    min_chunk_size: int = None,
-) -> list:
+    chunk_size: int | None = None,
+    min_chunk_size: int | None = None,
+) -> list[dict[str, Any]]:
     """
     Chunk by exchange pair: one > turn + AI response = one unit.
     Falls back to paragraph chunking if no > markers.
@@ -200,7 +202,9 @@ def chunk_exchanges(
         return _chunk_by_paragraph(content, chunk_size, min_chunk_size)
 
 
-def _chunk_by_exchange(lines: list, chunk_size: int, min_chunk_size: int) -> list:
+def _chunk_by_exchange(
+    lines: list[str], chunk_size: int, min_chunk_size: int
+) -> list[dict[str, Any]]:
     """One user turn (>) + the AI response that follows = one or more chunks.
 
     The full AI response is preserved verbatim.  When the combined
@@ -240,7 +244,7 @@ def _chunk_by_exchange(lines: list, chunk_size: int, min_chunk_size: int) -> lis
 
 
 def _emit_bounded(
-    chunks: list,
+    chunks: list[dict[str, Any]],
     content: str,
     chunk_size: int,
     min_chunk_size: int,
@@ -260,7 +264,7 @@ def _emit_bounded(
         chunks.append({"content": content[i : i + chunk_size], "chunk_index": len(chunks)})
 
 
-def _chunk_by_paragraph(content: str, chunk_size: int, min_chunk_size: int) -> list:
+def _chunk_by_paragraph(content: str, chunk_size: int, min_chunk_size: int) -> list[dict[str, Any]]:
     """Fallback: chunk by paragraph breaks."""
     chunks = []
     paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
@@ -373,7 +377,7 @@ def detect_convo_room(content: str) -> str:
 # =============================================================================
 
 
-def scan_convos(convo_dir: str) -> list:
+def scan_convos(convo_dir: str) -> list[Path]:
     """Find all potential conversation files.
 
     Skips symlinks and oversized files. Each skipped symlink is logged to
@@ -408,7 +412,15 @@ def scan_convos(convo_dir: str) -> list:
 # =============================================================================
 
 
-def _file_chunks_locked(collection, source_file, chunks, wing, room, agent, extract_mode):
+def _file_chunks_locked(
+    collection,
+    source_file: str,
+    chunks: list[dict[str, Any]],
+    wing: str,
+    room: str | None,
+    agent: str,
+    extract_mode: str,
+) -> tuple[int, defaultdict[str, int], bool]:
     """Lock the source file, purge stale drawers, and upsert fresh chunks.
 
     Combines the per-file serialization that prevents concurrent agents from
@@ -512,7 +524,7 @@ def _is_ai_tool_path(path: Path) -> bool:
     return False
 
 
-def _resolve_wing(convo_path: Path, wing: Optional[str]) -> str:
+def _resolve_wing(convo_path: Path, wing: str | None) -> str:
     """Determine the destination wing for ``mine_convos``.
 
     Precedence (first match wins):
@@ -540,12 +552,12 @@ def _resolve_wing(convo_path: Path, wing: Optional[str]) -> str:
 def mine_convos(
     convo_dir: str,
     palace_path: str,
-    wing: str = None,
+    wing: str | None = None,
     agent: str = "mempalace",
     limit: int = 0,
     dry_run: bool = False,
     extract_mode: str = "exchange",
-):
+) -> dict | None:
     """Mine a directory of conversation files into the palace.
 
     extract_mode:
@@ -594,12 +606,12 @@ def mine_convos(
 def _mine_convos_impl(
     convo_dir: str,
     palace_path: str,
-    wing: str = None,
+    wing: str | None = None,
     agent: str = "mempalace",
     limit: int = 0,
     dry_run: bool = False,
     extract_mode: str = "exchange",
-):
+) -> None:
     from .config import MempalaceConfig
 
     palace_config = MempalaceConfig()

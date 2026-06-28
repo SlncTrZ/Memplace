@@ -18,6 +18,7 @@ import threading  # noqa: E402
 import time  # noqa: E402
 from datetime import date, datetime  # noqa: E402
 from pathlib import Path  # noqa: E402
+from typing import Any  # noqa: E402
 
 from .config import (  # noqa: E402
     MempalaceConfig,
@@ -70,7 +71,7 @@ def _get_kg() -> KnowledgeGraph:
     return kg
 
 
-def _call_kg(op):
+def _call_kg(op) -> Any:
     """Run ``op(kg)`` against the cached KG with one-shot retry on close.
 
     Race we're guarding against: a handler grabs ``kg = _get_kg()`` and is
@@ -259,7 +260,7 @@ _WAL_REDACT_KEYS = frozenset(
 )
 
 
-def _wal_log(operation: str, params: dict, result: dict = None):
+def _wal_log(operation: str, params: dict, result: dict | None = None):
     """Append a write operation to the write-ahead log."""
     # Redact sensitive content from params before logging
     safe_params = {}
@@ -391,7 +392,7 @@ def _get_cached_metadata(col, where=None):
     return result
 
 
-def _sanitize_optional_name(value: str = None, field_name: str = "name") -> str:
+def _sanitize_optional_name(value: str | None = None, field_name: str = "name") -> str | None:
     """Validate optional wing/room-style filters."""
     if value is None or not value.strip():
         return None
@@ -406,7 +407,7 @@ def _tool_status_via_sqlite() -> dict:
 # ── Tool handler functions ────────────────────────────────────────────
 
 
-def tool_status():
+def tool_status() -> dict[str, Any]:
     # Run the safe sqlite/pickle probe before we touch the backend. In the
     # #1222 failure mode, opening the persistent client to call .count()
     # can segfault — short-circuit to a pure-sqlite path when divergence
@@ -480,7 +481,7 @@ Read AAAK naturally — expand codes mentally, treat *markers* as emotional cont
 When WRITING AAAK: use entity codes, mark emotions, keep structure tight."""
 
 
-def tool_list_wings():
+def tool_list_wings() -> dict[str, Any]:
     col = _get_collection()
     if not col:
         return _no_palace()
@@ -499,7 +500,7 @@ def tool_list_wings():
     return result
 
 
-def tool_list_rooms(wing: str = None):
+def tool_list_rooms(wing: str | None = None) -> dict[str, Any]:
     try:
         wing = _sanitize_optional_name(wing, "wing")
     except ValueError as e:
@@ -523,7 +524,7 @@ def tool_list_rooms(wing: str = None):
     return result
 
 
-def tool_get_taxonomy():
+def tool_get_taxonomy() -> dict[str, Any]:
     col = _get_collection()
     if not col:
         return _no_palace()
@@ -548,12 +549,12 @@ def tool_get_taxonomy():
 def tool_search(
     query: str,
     limit: int = 5,
-    wing: str = None,
-    room: str = None,
+    wing: str | None = None,
+    room: str | None = None,
     max_distance: float = 1.5,
-    min_similarity: float = None,
-    context: str = None,
-):
+    min_similarity: float | None = None,
+    context: str | None = None,
+) -> dict[str, Any]:
     limit = max(1, min(limit, _MAX_RESULTS))
     try:
         wing = _sanitize_optional_name(wing, "wing")
@@ -629,7 +630,7 @@ def tool_search(
     return result
 
 
-def tool_check_duplicate(content: str, threshold: float = 0.9):
+def tool_check_duplicate(content: str, threshold: float = 0.9) -> dict[str, Any]:
     _refresh_vector_disabled_flag()
     if _vector_disabled:
         # Without a usable HNSW we can't compute cosine similarity for
@@ -682,12 +683,12 @@ def tool_check_duplicate(content: str, threshold: float = 0.9):
         return {"error": "Duplicate check failed"}
 
 
-def tool_get_aaak_spec():
+def tool_get_aaak_spec() -> dict[str, Any]:
     """Return the AAAK dialect specification."""
     return {"aaak_spec": AAAK_SPEC}
 
 
-def tool_traverse_graph(start_room: str, max_hops: int = 2):
+def tool_traverse_graph(start_room: str, max_hops: int = 2) -> dict[str, Any]:
     """Walk the palace graph from a room. Find connected ideas across wings."""
     max_hops = max(1, min(max_hops, 10))
     col = _get_collection()
@@ -696,7 +697,7 @@ def tool_traverse_graph(start_room: str, max_hops: int = 2):
     return traverse(start_room, col=col, max_hops=max_hops)
 
 
-def tool_find_tunnels(wing_a: str = None, wing_b: str = None):
+def tool_find_tunnels(wing_a: str | None = None, wing_b: str | None = None) -> dict[str, Any]:
     """Find rooms that bridge two wings — the hallways connecting domains."""
     try:
         wing_a = _sanitize_optional_name(wing_a, "wing_a")
@@ -709,7 +710,7 @@ def tool_find_tunnels(wing_a: str = None, wing_b: str = None):
     return find_tunnels(wing_a, wing_b, col=col)
 
 
-def tool_graph_stats():
+def tool_graph_stats() -> dict[str, Any]:
     """Palace graph overview: nodes, tunnels, edges, connectivity."""
     col = _get_collection()
     if not col:
@@ -723,9 +724,9 @@ def tool_create_tunnel(
     target_wing: str,
     target_room: str,
     label: str = "",
-    source_drawer_id: str = None,
-    target_drawer_id: str = None,
-):
+    source_drawer_id: str | None = None,
+    target_drawer_id: str | None = None,
+) -> dict[str, Any]:
     """Create an explicit cross-wing tunnel between two palace locations.
 
     Use when you notice content in one project relates to another project.
@@ -750,7 +751,7 @@ def tool_create_tunnel(
     )
 
 
-def tool_list_tunnels(wing: str = None):
+def tool_list_tunnels(wing: str | None = None) -> dict[str, Any] | list[Any]:
     """List all explicit cross-wing tunnels, optionally filtered by wing."""
     try:
         wing = _sanitize_optional_name(wing, "wing")
@@ -759,14 +760,14 @@ def tool_list_tunnels(wing: str = None):
     return list_tunnels(wing)
 
 
-def tool_delete_tunnel(tunnel_id: str):
+def tool_delete_tunnel(tunnel_id: str) -> dict[str, Any]:
     """Delete an explicit tunnel by its ID."""
     if not tunnel_id or not isinstance(tunnel_id, str):
         return {"error": "tunnel_id is required"}
     return delete_tunnel(tunnel_id)
 
 
-def tool_follow_tunnels(wing: str, room: str):
+def tool_follow_tunnels(wing: str, room: str) -> dict[str, Any] | list[Any]:
     """Follow explicit tunnels from a room to see connected drawers in other wings."""
     try:
         wing = sanitize_name(wing, "wing")
@@ -778,8 +779,8 @@ def tool_follow_tunnels(wing: str, room: str):
 
 
 def tool_add_drawer(
-    wing: str, room: str, content: str, source_file: str = None, added_by: str = "mcp"
-):
+    wing: str, room: str, content: str, source_file: str | None = None, added_by: str = "mcp"
+) -> dict[str, Any]:
     """File verbatim content into a wing/room. Checks for duplicates first."""
     global _metadata_cache
     try:
@@ -845,7 +846,7 @@ def tool_add_drawer(
         return {"success": False, "error": str(e)}
 
 
-def tool_delete_drawer(drawer_id: str):
+def tool_delete_drawer(drawer_id: str) -> dict[str, Any]:
     """Delete a single drawer by ID."""
     global _metadata_cache
     col = _get_collection()
@@ -876,7 +877,9 @@ def tool_delete_drawer(drawer_id: str):
         return {"success": False, "error": str(e)}
 
 
-def tool_sync(project_dir: str = None, wing: str = None, apply: bool = False):
+def tool_sync(
+    project_dir: str | None = None, wing: str | None = None, apply: bool = False
+) -> dict[str, Any]:
     """Prune drawers whose source files are gitignored, missing, or moved (#1252)."""
     global _metadata_cache
     from .palace import MineAlreadyRunning
@@ -910,7 +913,7 @@ def tool_sync(project_dir: str = None, wing: str = None, apply: bool = False):
             _metadata_cache = None
 
 
-def tool_get_drawer(drawer_id: str):
+def tool_get_drawer(drawer_id: str) -> dict[str, Any]:
     """Fetch a single drawer by ID. Returns full content and metadata."""
     col = _get_collection()
     if not col:
@@ -941,7 +944,9 @@ def tool_get_drawer(drawer_id: str):
         return {"error": str(e)}
 
 
-def tool_list_drawers(wing: str = None, room: str = None, limit: int = 20, offset: int = 0):
+def tool_list_drawers(
+    wing: str | None = None, room: str | None = None, limit: int = 20, offset: int = 0
+) -> dict[str, Any]:
     """List drawers with pagination. Optional wing/room filter."""
     limit = max(1, min(limit, _MAX_RESULTS))
     offset = max(0, offset)
@@ -1000,7 +1005,9 @@ def tool_list_drawers(wing: str = None, room: str = None, limit: int = 20, offse
         return {"error": str(e)}
 
 
-def tool_update_drawer(drawer_id: str, content: str = None, wing: str = None, room: str = None):
+def tool_update_drawer(
+    drawer_id: str, content: str | None = None, wing: str | None = None, room: str | None = None
+) -> dict[str, Any]:
     """Update an existing drawer's content and/or metadata."""
     global _metadata_cache
 
@@ -1069,7 +1076,7 @@ def tool_update_drawer(drawer_id: str, content: str = None, wing: str = None, ro
         return {"success": False, "error": str(e)}
 
 
-def tool_kg_query(entity: str, as_of: str = None, direction: str = "both"):
+def tool_kg_query(entity: str, as_of: str | None = None, direction: str = "both") -> dict[str, Any]:
     """Query the knowledge graph for an entity's relationships."""
     try:
         entity = sanitize_kg_value(entity, "entity")
@@ -1088,12 +1095,12 @@ def tool_kg_add(
     subject: str,
     predicate: str,
     object: str,
-    valid_from: str = None,
-    valid_to: str = None,
-    source_closet: str = None,
-    source_file: str = None,
-    source_drawer_id: str = None,
-):
+    valid_from: str | None = None,
+    valid_to: str | None = None,
+    source_closet: str | None = None,
+    source_file: str | None = None,
+    source_drawer_id: str | None = None,
+) -> dict[str, Any]:
     """Add a relationship to the knowledge graph.
 
     All temporal and provenance fields are optional. ``valid_to`` lets callers
@@ -1141,7 +1148,9 @@ def tool_kg_add(
     return {"success": True, "triple_id": triple_id, "fact": f"{subject} → {predicate} → {object}"}
 
 
-def tool_kg_invalidate(subject: str, predicate: str, object: str, ended: str = None):
+def tool_kg_invalidate(
+    subject: str, predicate: str, object: str, ended: str | None = None
+) -> dict[str, Any]:
     """Mark a fact as no longer true.
 
     Returns the actual ``ended`` date/time that was stored. When the caller
@@ -1179,7 +1188,7 @@ def tool_kg_invalidate(subject: str, predicate: str, object: str, ended: str = N
     }
 
 
-def tool_kg_timeline(entity: str = None):
+def tool_kg_timeline(entity: str | None = None) -> dict[str, Any]:
     """Get chronological timeline of facts, optionally for one entity."""
     if entity is not None:
         try:
@@ -1190,12 +1199,14 @@ def tool_kg_timeline(entity: str = None):
     return {"entity": entity or "all", "timeline": results, "count": len(results)}
 
 
-def tool_kg_stats():
+def tool_kg_stats() -> dict[str, Any]:
     """Knowledge graph overview: entities, triples, relationship types."""
     return _call_kg(lambda kg: kg.stats())
 
 
-def tool_diary_write(agent_name: str, entry: str, topic: str = "general", wing: str = ""):
+def tool_diary_write(
+    agent_name: str, entry: str, topic: str = "general", wing: str = ""
+) -> dict[str, Any]:
     """
     Write a diary entry for this agent. Entries are timestamped and
     accumulate over time in a diary room.
@@ -1272,7 +1283,7 @@ def tool_diary_write(agent_name: str, entry: str, topic: str = "general", wing: 
         return {"success": False, "error": str(e)}
 
 
-def tool_diary_read(agent_name: str, last_n: int = 10, wing: str = ""):
+def tool_diary_read(agent_name: str, last_n: int = 10, wing: str = "") -> dict[str, Any]:
     """
     Read an agent's recent diary entries. Returns the last N entries
     in chronological order — the agent's personal journal.
@@ -1342,7 +1353,9 @@ def tool_diary_read(agent_name: str, last_n: int = 10, wing: str = ""):
         return {"error": "Failed to read diary entries"}
 
 
-def tool_hook_settings(silent_save: bool = None, desktop_toast: bool = None):
+def tool_hook_settings(
+    silent_save: bool | None = None, desktop_toast: bool | None = None
+) -> dict[str, Any]:
     """
     Get or set hook behavior settings.
 
@@ -1386,7 +1399,7 @@ def tool_hook_settings(silent_save: bool = None, desktop_toast: bool = None):
     return result
 
 
-def tool_memories_filed_away():
+def tool_memories_filed_away() -> dict[str, Any]:
     """Acknowledge the latest silent checkpoint. Returns a short summary."""
     state_dir = Path.home() / ".mempalace" / "hook_state"
     ack_file = state_dir / "last_checkpoint"
@@ -1417,7 +1430,7 @@ def tool_memories_filed_away():
         }
 
 
-def tool_reconnect():
+def tool_reconnect() -> dict[str, Any]:
     """Force the MCP server to drop cached state.
 
     Use after external scripts or CLI commands modify the palace data.

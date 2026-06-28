@@ -40,7 +40,7 @@ import tempfile
 from collections import defaultdict
 from datetime import datetime, timezone
 from itertools import combinations
-from typing import Optional
+from typing import Any, Optional
 
 from .dynamics import initialize_dynamics_fields
 
@@ -157,7 +157,7 @@ def _save_hallways(hallways: list[dict], config=None) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _parse_entities(value) -> list[str]:
+def _parse_entities(value: Any) -> list[str]:
     """Drawer ``entities`` metadata is a semicolon-separated string. Parse it.
 
     Returns a deterministic *list* (not a set) because order matters for
@@ -197,7 +197,7 @@ def _hallway_id(wing: str, entity_a: str, entity_b: str) -> str:
 
 def compute_hallways_for_wing(
     wing: str,
-    col=None,
+    col: Any = None,
     min_count: int = 2,
 ) -> list[dict]:
     """Compute entity-pair hallways for one wing.

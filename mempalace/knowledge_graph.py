@@ -41,7 +41,7 @@ import sqlite3
 import threading
 from datetime import date, datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from .config import sanitize_iso_temporal
 from .ids import make_triple_id
 
@@ -503,7 +503,7 @@ class KnowledgeGraph:
 
     # ── Stats ─────────────────────────────────────────────────────────────
 
-    def stats(self):
+    def stats(self) -> dict[str, Any]:
         with self._lock:
             conn = self._conn()
             entities = conn.execute("SELECT COUNT(*) as cnt FROM entities").fetchone()["cnt"]

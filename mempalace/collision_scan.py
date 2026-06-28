@@ -24,6 +24,7 @@ metadata, that is normal re-write behavior, not collision.
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Any
 
 
 class CollisionError(Exception):
@@ -38,7 +39,7 @@ class CollisionError(Exception):
     """
 
 
-def _metadata_key(meta: dict) -> tuple:
+def _metadata_key(meta: dict) -> tuple[str | None, ...]:
     """Reduce a drawer metadata dict to the tuple used for collision
     discrimination. Two metadata dicts are 'the same chunk' iff their
     key tuples match. Falls back to ``(source_file,)`` when
@@ -51,8 +52,8 @@ def _metadata_key(meta: dict) -> tuple:
 
 
 def assert_no_collisions(
-    proposed: list[tuple[str, dict]],
-    collection,
+    proposed: list[tuple[str, dict[str, Any]]],
+    collection: Any,
 ) -> None:
     """Abort the mine via ``CollisionError`` if any proposed drawer_id
     collides with itself or with an existing drawer in ``collection``.
@@ -99,7 +100,7 @@ def assert_no_collisions(
         raise CollisionError(_format_collisions(collisions))
 
 
-def _format_collisions(collisions: dict[str, set[tuple]]) -> str:
+def _format_collisions(collisions: dict[str, set[tuple[str | None, ...]]]) -> str:
     """Render a CollisionError message that enumerates every colliding
     drawer_id and the metadata tuples producing it."""
     lines = [

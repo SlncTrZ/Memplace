@@ -67,7 +67,7 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from .palace import (
     NORMALIZE_VERSION,
@@ -512,7 +512,7 @@ def _print_mine_summary(
     files_skipped: int,
     files_errored: int,
     total_drawers: int,
-    status_counts: dict,
+    status_counts: dict[str, int],
 ) -> None:
     """Print the post-mine summary block.
 
@@ -536,7 +536,7 @@ def _print_mine_summary(
 
 
 def _register_skip_sentinel_if_appropriate(
-    collection, source_file: str, wing: str, agent: str, status: ExtractionStatus
+    collection: Any, source_file: str, wing: str, agent: str, status: ExtractionStatus
 ) -> None:
     """Write the ``file_already_mined`` sentinel ONLY when the skip is durable.
 
@@ -551,7 +551,7 @@ def _register_skip_sentinel_if_appropriate(
     _register_file(collection, source_file, wing, agent)
 
 
-def _register_file(collection, source_file: str, wing: str, agent: str) -> None:
+def _register_file(collection: Any, source_file: str, wing: str, agent: str) -> None:
     """Write a sentinel so file_already_mined() returns True for 0-chunk files.
 
     Without this, files that extract to nothing (or hit a SKIP status) get
@@ -583,15 +583,15 @@ def _register_file(collection, source_file: str, wing: str, agent: str) -> None:
 
 
 def _file_chunks_locked(
-    collection,
-    source_file,
-    chunks,
-    wing,
-    room,
-    agent,
+    collection: Any,
+    source_file: str,
+    chunks: list[dict[str, Any]],
+    wing: str,
+    room: str,
+    agent: str,
     source_mtime: Optional[float] = None,
     content: Optional[str] = None,
-):
+) -> tuple[int, bool]:
     """Lock the source file, purge stale drawers, and upsert fresh chunks.
 
     Mirrors the canonical convo_miner pattern (locked purge + batched upsert)

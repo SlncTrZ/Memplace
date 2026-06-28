@@ -38,6 +38,7 @@ import os
 import functools
 from pathlib import Path
 from collections import defaultdict
+from typing import Any
 
 from mempalace.i18n import get_entity_patterns
 
@@ -173,7 +174,7 @@ def _apply_known_systems_prepass(text: str) -> tuple[str, dict[str, int]]:
 # ==================== LANGUAGE-AWARE PATTERN LOADING ====================
 
 
-def _normalize_langs(languages) -> tuple:
+def _normalize_langs(languages: str | tuple[str, ...] | None) -> tuple[str, ...]:
     """Coerce a language input into a non-empty hashable tuple."""
     if not languages:
         return ("en",)
@@ -183,7 +184,7 @@ def _normalize_langs(languages) -> tuple:
 
 
 @functools.lru_cache(maxsize=32)
-def _get_stopwords(languages: tuple) -> frozenset:
+def _get_stopwords(languages: tuple[str, ...]) -> frozenset[str]:
     """Return the union of stopwords across the given languages."""
     patterns = get_entity_patterns(languages)
     return frozenset(patterns["stopwords"])
@@ -270,7 +271,7 @@ SKIP_FILENAMES = {
 # ==================== CANDIDATE EXTRACTION ====================
 
 
-def extract_candidates(text: str, languages=("en",)) -> dict:
+def extract_candidates(text: str, languages: tuple[str, ...] = ("en",)) -> dict[str, int]:
     """
     Extract all capitalized proper noun candidates from text.
     Returns {name: frequency} for names appearing 3+ times.
@@ -335,14 +336,14 @@ def extract_candidates(text: str, languages=("en",)) -> dict:
 
 
 @functools.lru_cache(maxsize=256)
-def _build_patterns(name: str, languages: tuple = ("en",)) -> dict:
+def _build_patterns(name: str, languages: tuple[str, ...] = ("en",)) -> dict[str, Any]:
     """Pre-compile all regex patterns for a single entity name, per language set."""
     n = re.escape(name)
     langs = _normalize_langs(languages)
     sources = get_entity_patterns(langs)
 
-    def _compile_each(raw_patterns, flags=re.IGNORECASE):
-        compiled = []
+    def _compile_each(raw_patterns: list | tuple, flags: int = re.IGNORECASE) -> list[re.Pattern]:
+        compiled: list[re.Pattern] = []
         for p in raw_patterns:
             try:
                 compiled.append(re.compile(p.format(name=n), flags))
@@ -369,7 +370,7 @@ def _build_patterns(name: str, languages: tuple = ("en",)) -> dict:
 
 
 @functools.lru_cache(maxsize=32)
-def _pronoun_re(languages: tuple):
+def _pronoun_re(languages: tuple[str, ...]) -> re.Pattern | None:
     """Compile a combined pronoun regex for the given languages."""
     langs = _normalize_langs(languages)
     patterns = get_entity_patterns(langs)
@@ -382,7 +383,7 @@ def _pronoun_re(languages: tuple):
         return None
 
 
-def score_entity(name: str, text: str, lines: list, languages=("en",)) -> dict:
+def score_entity(name: str, text: str, lines: list[str], languages: tuple[str, ...] = ("en",)) -> dict[str, Any]:
     """
     Score a candidate entity as person vs project.
     Returns scores and the signals that fired.
@@ -468,7 +469,7 @@ def score_entity(name: str, text: str, lines: list, languages=("en",)) -> dict:
 # ==================== CLASSIFY ====================
 
 
-def classify_entity(name: str, frequency: int, scores: dict) -> dict:
+def classify_entity(name: str, frequency: int, scores: dict[str, Any]) -> dict[str, Any]:
     """
     Given scores, classify as person / project / uncertain.
     Returns entity dict with confidence.
@@ -550,11 +551,11 @@ def classify_entity(name: str, frequency: int, scores: dict) -> dict:
 
 
 def detect_entities(
-    file_paths: list,
+    file_paths: list[Path],
     max_files: int = 10,
-    languages=("en",),
-    corpus_origin: dict | None = None,
-) -> dict:
+    languages: tuple[str, ...] = ("en",),
+    corpus_origin: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Scan files and detect entity candidates.
 
@@ -646,7 +647,7 @@ def detect_entities(
     return _apply_corpus_origin(detected, corpus_origin)
 
 
-def _apply_corpus_origin(detected: dict, corpus_origin: dict | None) -> dict:
+def _apply_corpus_origin(detected: dict[str, Any], corpus_origin: dict[str, Any] | None) -> dict[str, Any]:
     """Reclassify per-candidate buckets using corpus-origin context.
 
     When the corpus is identified as AI-dialogue with known agent persona
@@ -696,7 +697,7 @@ def _apply_corpus_origin(detected: dict, corpus_origin: dict | None) -> dict:
     }
 
 
-def _tag_as_persona(entity: dict) -> dict:
+def _tag_as_persona(entity: dict[str, Any]) -> dict[str, Any]:
     """Return a new entity dict tagged as agent_persona with provenance signal."""
     existing_signals = entity.get("signals", [])
     return {
@@ -710,7 +711,7 @@ def _tag_as_persona(entity: dict) -> dict:
 # ==================== INTERACTIVE CONFIRM ====================
 
 
-def _print_entity_list(entities: list, label: str):
+def _print_entity_list(entities: list[dict[str, Any]], label: str) -> None:
     print(f"\n  {label}:")
     if not entities:
         print("    (none detected)")
@@ -721,7 +722,7 @@ def _print_entity_list(entities: list, label: str):
         print(f"    {i + 1:2}. {e['name']:20} [{confidence_bar}] {signals_str}")
 
 
-def confirm_entities(detected: dict, yes: bool = False) -> dict:
+def confirm_entities(detected: dict[str, Any], yes: bool = False) -> dict[str, Any]:
     """
     Interactive confirmation step.
     User reviews detected entities, removes wrong ones, adds missing ones.
@@ -836,7 +837,7 @@ def confirm_entities(detected: dict, yes: bool = False) -> dict:
 # ==================== SCAN HELPER ====================
 
 
-def scan_for_detection(project_dir: str, max_files: int = 10) -> list:
+def scan_for_detection(project_dir: str, max_files: int = 10) -> list[Path]:
     """
     Collect prose file paths for entity detection.
     Prose only (.txt, .md, .rst, .csv) — code files produce too many false positives.

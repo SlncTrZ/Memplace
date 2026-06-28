@@ -12,6 +12,7 @@ import contextlib
 import io
 import os
 import sys
+from collections.abc import Callable
 from typing import Any
 
 from .config import MempalaceConfig
@@ -92,7 +93,7 @@ def _apply_backend(backend: str | None) -> None:
     os.environ[_BACKEND_ENV] = backend_name
 
 
-def _capture(fn):
+def _capture(fn: Callable[[], Any]) -> tuple[Any, str, str]:
     stdout = io.StringIO()
     stderr = io.StringIO()
     with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):

@@ -28,6 +28,7 @@ import threading
 import time
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from typing import Any
 
 from .config import MempalaceConfig, normalize_wing_name
 from .dynamics import initialize_dynamics_fields
@@ -66,7 +67,7 @@ _graph_cache_time = 0.0
 _GRAPH_CACHE_TTL = 60.0  # seconds — graph changes less often than metadata
 
 
-def invalidate_graph_cache():
+def invalidate_graph_cache() -> None:
     """Clear the graph cache. Called from mcp_server.py on writes."""
     global _graph_cache_nodes, _graph_cache_edges, _graph_cache_time
     with _graph_cache_lock:
@@ -75,7 +76,7 @@ def invalidate_graph_cache():
         _graph_cache_time = 0.0
 
 
-def _get_collection(config=None):
+def _get_collection(config: MempalaceConfig | None = None) -> Any:
     config = config or MempalaceConfig()
     try:
         return _get_palace_collection(
@@ -87,7 +88,9 @@ def _get_collection(config=None):
         return None
 
 
-def build_graph(col=None, config=None):
+def build_graph(
+    col: Any = None, config: MempalaceConfig | None = None
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """
     Build the palace graph from palace metadata.
 
@@ -108,7 +111,7 @@ def build_graph(col=None, config=None):
     # single-palace use case. Callers switching collections must invalidate first.
     with _graph_cache_lock:
         if _graph_cache_nodes is not None and (now - _graph_cache_time) < _GRAPH_CACHE_TTL:
-            return _graph_cache_nodes, _graph_cache_edges
+            return _graph_cache_nodes, _graph_cache_edges  # type: ignore[return-value]
 
     if col is None:
         col = _get_collection(config)
@@ -183,7 +186,9 @@ def build_graph(col=None, config=None):
     return nodes, edges
 
 
-def traverse(start_room: str, col=None, config=None, max_hops: int = 2):
+def traverse(
+    start_room: str, col: Any = None, config: Any = None, max_hops: int = 2
+) -> dict[str, Any]:
     """
     Walk the graph from a starting room. Find connected rooms
     through shared wings.
@@ -245,7 +250,9 @@ def traverse(start_room: str, col=None, config=None, max_hops: int = 2):
     return results[:50]  # cap results
 
 
-def find_tunnels(wing_a: str = None, wing_b: str = None, col=None, config=None):
+def find_tunnels(
+    wing_a: str | None = None, wing_b: str | None = None, col: Any = None, config: Any = None
+) -> dict[str, Any]:
     """
     Find rooms that connect two wings (or all tunnel rooms if no wings specified).
     These are the "hallways" — same named idea appearing in multiple domains.
@@ -289,7 +296,7 @@ def find_tunnels(wing_a: str = None, wing_b: str = None, col=None, config=None):
     return tunnels[:50]
 
 
-def graph_stats(col=None, config=None):
+def graph_stats(col: Any = None, config: Any = None) -> dict[str, Any]:
     """Summary statistics about the palace graph."""
     nodes, edges = build_graph(col, config)
 
@@ -312,7 +319,7 @@ def graph_stats(col=None, config=None):
     }
 
 
-def _fuzzy_match(query: str, nodes: dict, n: int = 5):
+def _fuzzy_match(query: str, nodes: dict, n: int = 5) -> list[str]:
     """Find rooms that approximately match a query string."""
     query_lower = query.lower()
     scored = []
@@ -338,7 +345,7 @@ def _fuzzy_match(query: str, nodes: dict, n: int = 5):
 # the backend which can be recreated).
 
 
-def _get_tunnel_file(config=None) -> str:
+def _get_tunnel_file(config: MempalaceConfig | None = None) -> str:
     """Return the path to the tunnels.json file, derived from MempalaceConfig.palace_path."""
     config = config or MempalaceConfig()
     return config.tunnel_file
@@ -349,7 +356,7 @@ def _legacy_tunnel_file() -> str:
     return os.path.join(os.path.expanduser("~"), ".mempalace", "tunnels.json")
 
 
-def _load_tunnels(config=None):
+def _load_tunnels(config: MempalaceConfig | None = None) -> list[dict[str, Any]]:
     """Load explicit tunnels from disk.
 
     Returns an empty list if the file is missing or corrupt (e.g. truncated
@@ -391,7 +398,7 @@ def _load_tunnels(config=None):
     return []
 
 
-def _save_tunnels(tunnels, config=None):
+def _save_tunnels(tunnels: list[dict[str, Any]], config: MempalaceConfig | None = None) -> None:
     """Persist explicit tunnels atomically.
 
     Writes to ``tunnels.json.tmp`` then ``os.replace``s it into place, so
@@ -458,7 +465,7 @@ def _require_name(value: str, field: str) -> str:
     return value.strip()
 
 
-def _check_room_exists(wing: str, room: str, col) -> bool:
+def _check_room_exists(wing: str, room: str, col: Any) -> bool:
     """Check if at least one drawer exists for the given wing/room."""
     if col is None:
         # If collection is unreachable, can't verify, so allow.
@@ -488,10 +495,10 @@ def create_tunnel(
     target_wing: str,
     target_room: str,
     label: str = "",
-    source_drawer_id: str = None,
-    target_drawer_id: str = None,
+    source_drawer_id: str | None = None,
+    target_drawer_id: str | None = None,
     kind: str = "explicit",
-):
+) -> dict[str, Any]:
     """Create an explicit (symmetric) tunnel between two locations in the palace.
 
     Tunnels are undirected: ``create_tunnel(A, B)`` and ``create_tunnel(B, A)``
@@ -601,7 +608,7 @@ def create_tunnel(
     return tunnel
 
 
-def list_tunnels(wing: str = None):
+def list_tunnels(wing: str | None = None) -> list[Any]:
     """List all explicit tunnels, optionally filtered by wing.
 
     Returns tunnels where ``wing`` appears as either source or target
@@ -625,7 +632,7 @@ def list_tunnels(wing: str = None):
     return tunnels
 
 
-def delete_tunnel(tunnel_id: str):
+def delete_tunnel(tunnel_id: str) -> dict[str, str]:
     """Delete an explicit tunnel by ID. Returns ``{"deleted": <id>}``."""
     with mine_lock(_get_tunnel_file()):
         tunnels = _load_tunnels()
@@ -634,7 +641,7 @@ def delete_tunnel(tunnel_id: str):
     return {"deleted": tunnel_id}
 
 
-def follow_tunnels(wing: str, room: str, col=None, config=None):
+def follow_tunnels(wing: str, room: str, col: Any = None, config: Any = None) -> list[Any]:
     """Follow explicit tunnels from a room — returns connected drawers.
 
     Given a location (wing/room), finds all tunnels leading from or to it,
@@ -736,10 +743,10 @@ def topic_room(name: str) -> str:
 
 
 def compute_topic_tunnels(
-    topics_by_wing: dict,
+    topics_by_wing: dict[str, list[str]],
     min_count: int = 1,
     label_prefix: str = "shared topic",
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Create tunnels for every pair of wings that share >= ``min_count`` topics.
 
     Args:
@@ -821,10 +828,10 @@ def compute_topic_tunnels(
 
 def topic_tunnels_for_wing(
     wing: str,
-    topics_by_wing: dict,
+    topics_by_wing: dict[str, list[str]],
     min_count: int = 1,
     label_prefix: str = "shared topic",
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Compute topic tunnels involving a single wing.
 
     Used by the miner to incrementally update tunnels for the wing that
@@ -875,9 +882,9 @@ def topic_tunnels_for_wing(
 
 def entity_tunnels_for_wing(
     wing: str,
-    hallways: list,
+    hallways: list[dict[str, Any]],
     label_prefix: str = "shared entity",
-) -> list:
+) -> list[dict[str, Any]]:
     """Compute entity tunnels involving a single wing.
 
     An entity tunnel bridges two wings when the same entity (person,

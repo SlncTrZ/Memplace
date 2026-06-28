@@ -14,7 +14,8 @@ Usage:
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Callable, Optional, TypedDict
+from collections.abc import Callable, Iterator
+from typing import Any, Optional, TypedDict
 
 from .miner import is_gitignored, load_gitignore_matcher
 from .palace import (
@@ -42,7 +43,7 @@ class SyncReport(TypedDict):
     by_source: dict[str, int]
 
 
-def _resolve_project_root(source_file: Path, project_roots: list) -> Optional[Path]:
+def _resolve_project_root(source_file: Path, project_roots: list[Path]) -> Optional[Path]:
     """Return the longest project_root that source_file lives under.
 
     Assumes ``project_roots`` is sorted by path-length descending so the
@@ -130,7 +131,7 @@ def _classify_drawer(
     return "kept"
 
 
-def _iter_drawer_metadata(col, wing: Optional[str]):
+def _iter_drawer_metadata(col: Any, wing: Optional[str]) -> Iterator[tuple[str, dict]]:
     """Yield (id, metadata) tuples from the drawers collection in batches."""
     offset = 0
     where = {"wing": wing} if wing else None
@@ -150,7 +151,7 @@ def _iter_drawer_metadata(col, wing: Optional[str]):
         offset += len(ids)
 
 
-def _auto_detect_project_roots(col, wing: Optional[str]) -> list:
+def _auto_detect_project_roots(col: Any, wing: Optional[str]) -> list[Path]:
     """Walk drawer metadata once collecting candidate project roots.
 
     A path is a project root if any ancestor up to filesystem root holds
@@ -178,13 +179,13 @@ def _auto_detect_project_roots(col, wing: Optional[str]) -> list:
     return sorted(roots, key=lambda p: (-len(str(p)), str(p)))
 
 
-def _normalize_project_dirs(project_dirs) -> list:
+def _normalize_project_dirs(project_dirs: list[str]) -> list[Path]:
     """Resolve and sort project dirs so deepest-prefix wins on first match."""
     resolved = [Path(p).resolve(strict=False) for p in project_dirs]
     return sorted(resolved, key=lambda p: (-len(str(p)), str(p)))
 
 
-def _delete_in_batches(col, ids: list, batch_size: int, wal_log: Optional[Callable]):
+def _delete_in_batches(col: Any, ids: list, batch_size: int, wal_log: Optional[Callable]) -> int:
     """Delete drawer IDs in batches, optionally logging each batch to WAL."""
     deleted = 0
     for i in range(0, len(ids), batch_size):

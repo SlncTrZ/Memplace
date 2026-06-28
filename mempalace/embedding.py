@@ -34,7 +34,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from typing import Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -57,15 +57,15 @@ _AUTO_ORDER = [
     ("DmlExecutionProvider", "dml"),
 ]
 
-_EF_CACHE: dict = {}
+_EF_CACHE: dict[tuple[str | None, tuple[str, ...]], Any] = {}
 # Check-then-construct on the cache must be atomic: without it, two threads
 # resolving the same key each keep their own EF instance, and each instance
 # later lazy-loads its own copy of the model.
 _EF_CACHE_LOCK = threading.Lock()
-_WARNED: set = set()
+_WARNED: set[str] = set()
 
 
-def _resolve_providers(device: str) -> tuple[list, str]:
+def _resolve_providers(device: str) -> tuple[list[str], str]:
     """Return ``(provider_list, effective_device)`` for ``device``.
 
     Falls back to CPU (with a one-shot warning) when the requested
@@ -113,7 +113,7 @@ def _resolve_providers(device: str) -> tuple[list, str]:
     return (requested, device)
 
 
-def _intra_op_session_options(intra_op_num_threads: int):
+def _intra_op_session_options(intra_op_num_threads: int) -> Any:
     """Build ORT ``SessionOptions`` capping the intra-op thread pool (#1068).
 
     Returns ``None`` when ``intra_op_num_threads <= 0`` so the caller leaves
@@ -142,7 +142,7 @@ def _resolve_intra_op_threads() -> int:
         return 0
 
 
-def _build_ef_class():
+def _build_ef_class() -> type:
     """Subclass ``ONNXMiniLM_L6_V2`` with name ``"default"``.
 
     Why the rename: the backend persists the EF identity on the collection
@@ -256,10 +256,10 @@ class EmbeddinggemmaONNX:
 
     def __init__(
         self,
-        preferred_providers=None,
+        preferred_providers: list[str] | None = None,
         batch_size: int = _EMBEDDINGGEMMA_BATCH_SIZE,
         intra_op_num_threads: int = 0,
-    ):
+    ) -> None:
         if batch_size < 1:
             raise ValueError(f"batch_size must be >= 1, got {batch_size}")
         self._providers = (
@@ -373,7 +373,7 @@ class EmbeddinggemmaONNX:
         return self(input)
 
 
-def get_embedding_function(device: Optional[str] = None, model: Optional[str] = None):
+def get_embedding_function(device: str | None = None, model: str | None = None) -> Any:
     """Return a cached embedding function for the requested device + model.
 
     ``device=None`` reads :attr:`MempalaceConfig.embedding_device`;
@@ -418,7 +418,7 @@ def get_embedding_function(device: Optional[str] = None, model: Optional[str] = 
     return ef
 
 
-def describe_device(device: Optional[str] = None) -> str:
+def describe_device(device: str | None = None) -> str:
     """Return a short human-readable label for the resolved device.
 
     Used by the miner CLI header so users can see at a glance whether GPU
@@ -434,10 +434,10 @@ def describe_device(device: Optional[str] = None) -> str:
 
 # Probed vector widths, keyed by resolved model name. Populated once per
 # process the first time an identity is resolved for a model.
-_DIM_CACHE: dict = {}
+_DIM_CACHE: dict[str, int] = {}
 
 
-def current_model_name(model: Optional[str] = None) -> str:
+def current_model_name(model: str | None = None) -> str:
     """Resolve the canonical embedder model name (cheap, no model load).
 
     This is the configured ``embedding_model`` (``"minilm"`` /
@@ -451,7 +451,7 @@ def current_model_name(model: Optional[str] = None) -> str:
     return MempalaceConfig().embedding_model
 
 
-def probe_dimension(device: Optional[str] = None, model: Optional[str] = None) -> int:
+def probe_dimension(device: str | None = None, model: str | None = None) -> int:
     """Return the embedder's output dimension by embedding a short probe.
 
     Model-agnostic — works for any model without a hardcoded table — and
@@ -474,7 +474,7 @@ def probe_dimension(device: Optional[str] = None, model: Optional[str] = None) -
     return dim
 
 
-def get_embedder_identity(device: Optional[str] = None, model: Optional[str] = None):
+def get_embedder_identity(device: str | None = None, model: str | None = None) -> Any:
     """Resolve the current embedder identity (RFC 001).
 
     ``model_name`` from config (cheap); ``dimension`` from a cached one-time
