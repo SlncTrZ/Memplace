@@ -1,5 +1,5 @@
 [project]
-name = "mempalace"
+name = "mempalace-ai"
 version = "3.5.0"
 description = "Give your AI a memory — mine projects and conversations into a searchable palace. No API key required."
 readme = "README.md"
