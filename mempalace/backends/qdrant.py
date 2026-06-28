@@ -47,7 +47,9 @@ def _stable_uuid(text: str) -> str:
 
 
 def _get_embedding(text: str) -> Optional[list[float]]:
-    url = os.getenv("OLLAMA_EMBED_URL", os.getenv("OLLAMA_URL", f"{_OLLAMA_BASE}/api/embeddings"))
+    _raw = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    _base = _raw.rstrip("/")
+    url = os.getenv("OLLAMA_EMBED_URL", f"{_base}/api/embeddings")
     model = os.getenv("OLLAMA_EMBED_MODEL", DEFAULT_EMBED_MODEL)
     try:
         r = requests.post(url, json={"model": model, "prompt": text}, timeout=30.0)
