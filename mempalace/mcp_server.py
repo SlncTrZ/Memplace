@@ -65,8 +65,12 @@ _args = _parse_args()
 if _args.palace:
     os.environ["MEMPALACE_PALACE_PATH"] = os.path.abspath(_args.palace)
 
-# Tool code in mcp_tools.py has already been imported above, which
-# instantiated MempalaceConfig() after reading the env var set above.
+# Set palace_flag_given on the mcp_tools module to preserve the original
+# semantics: _palace_flag_given is True only when --palace was passed on
+# the CLI, not just because the env var was pre-set.
+from . import mcp_tools as _mcp_tools  # noqa: E402
+
+_mcp_tools._palace_flag_given = bool(_args.palace)
 # ── JSON-RPC dispatcher ───────────────────────────────────────────────
 
 

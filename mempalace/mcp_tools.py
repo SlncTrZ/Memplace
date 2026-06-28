@@ -14,7 +14,6 @@ import json  # noqa: E402
 import logging  # noqa: E402
 import os  # noqa: E402
 import sqlite3  # noqa: E402
-import sys  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
 from datetime import date, datetime  # noqa: E402
@@ -41,7 +40,6 @@ from .palace_graph import (  # noqa: E402
 )
 from .knowledge_graph import KnowledgeGraph, DEFAULT_KG_PATH  # noqa: E402
 
-logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)
 logger = logging.getLogger("mempalace_mcp")
 
 # ── Module-level state ────────────────────────────────────────────────
@@ -50,12 +48,14 @@ _config = MempalaceConfig()
 
 _kg_by_path: dict[str, KnowledgeGraph] = {}
 _kg_cache_lock = threading.Lock()
-_palace_flag_given: bool = bool(os.environ.get("MEMPALACE_PALACE_PATH"))
+_palace_flag_given: bool = False
+
 
 def _resolve_kg_path() -> str:
     if _palace_flag_given:
         return os.path.join(_config.palace_path, "knowledge_graph.sqlite3")
     return DEFAULT_KG_PATH
+
 
 def _get_kg() -> KnowledgeGraph:
     path = os.path.abspath(_resolve_kg_path())
@@ -68,6 +68,7 @@ def _get_kg() -> KnowledgeGraph:
             kg = KnowledgeGraph(db_path=path)
             _kg_by_path[path] = kg
     return kg
+
 
 def _call_kg(op):
     """Run ``op(kg)`` against the cached KG with one-shot retry on close.
@@ -100,15 +101,18 @@ def _call_kg(op):
                 continue
             raise
 
+
 _client_cache = None
 _collection_cache = None
 # Qdrant backend
 _client_cache = None
 _collection_cache = None
 
+
 def _is_transient_index_error(result) -> bool:
     """Qdrant is synchronous."""
     return False
+
 
 def _force_cache_reset() -> None:
     """Force re-connect on next tool call."""
@@ -118,10 +122,12 @@ def _force_cache_reset() -> None:
     _metadata_cache = None
     _metadata_cache_time = 0
 
+
 _CONVERSATION_COLLECTION = "meilin_conversation"
 _vector_disabled = False
 _vector_disabled_reason = ""
 _vector_capacity_status = {}
+
 
 def _refresh_vector_disabled_flag() -> None:
     """Qdrant vectors are always healthy."""
@@ -129,6 +135,7 @@ def _refresh_vector_disabled_flag() -> None:
     _vector_disabled = False
     _vector_disabled_reason = ""
     _vector_capacity_status = {}
+
 
 def _search_conversation(query: str, limit: int = 5, max_distance: float = 1.5) -> list:
     """Search conversation collection using the resolved backend.
@@ -225,6 +232,7 @@ def _search_conversation(query: str, limit: int = 5, max_distance: float = 1.5) 
 
     return mapped
 
+
 # Every write operation is logged to a JSONL file before execution.
 # This provides an audit trail for detecting memory poisoning and
 # enables review/rollback of writes from external or untrusted sources.
@@ -250,6 +258,7 @@ _WAL_REDACT_KEYS = frozenset(
     {"content", "content_preview", "document", "entry", "entry_preview", "query", "text"}
 )
 
+
 def _wal_log(operation: str, params: dict, result: dict = None):
     """Append a write operation to the write-ahead log."""
     # Redact sensitive content from params before logging
@@ -271,6 +280,7 @@ def _wal_log(operation: str, params: dict, result: dict = None):
             f.write(json.dumps(entry, default=str) + "\n")
     except Exception as e:
         logger.error(f"WAL write failed: {e}")
+
 
 def _get_client():
     """Return the backend instance (cached), resolved via palace.resolve_backend_name().
@@ -294,6 +304,7 @@ def _get_client():
         _metadata_cache = None
         _metadata_cache_time = 0
     return _client_cache
+
 
 def _get_collection(create=False):
     """Return the collection via palace.get_collection(), caching between calls.
@@ -320,7 +331,7 @@ def _get_collection(create=False):
             # Sync client cache so _get_client() shares the same instance
             _client_cache = _palace.get_backend_for_palace(palace_path)
             break
-        except Exception as exc:
+        except Exception:
             logger.error("_get_collection attempt %d/2 failed", attempt + 1, exc_info=True)
             if attempt == 0:
                 _client_cache = None
@@ -332,11 +343,13 @@ def _get_collection(create=False):
 
     return _collection_cache
 
+
 def _no_palace():
     return {
         "error": "No palace found",
         "hint": "Run: mempalace init <dir> && mempalace mine <dir>",
     }
+
 
 def _fetch_all_metadata(col, where=None):
     """Paginate col.get() to avoid the 10K silent truncation limit."""
@@ -354,10 +367,12 @@ def _fetch_all_metadata(col, where=None):
         offset += len(batch["metadatas"])
     return all_meta
 
+
 _metadata_cache = None
 _metadata_cache_time = 0
 _METADATA_CACHE_TTL = 5.0  # seconds
 _MAX_RESULTS = 100  # upper bound for search/list limit params
+
 
 def _get_cached_metadata(col, where=None):
     """Return cached metadata if fresh, else fetch and cache."""
@@ -375,17 +390,21 @@ def _get_cached_metadata(col, where=None):
         _metadata_cache_time = now
     return result
 
+
 def _sanitize_optional_name(value: str = None, field_name: str = "name") -> str:
     """Validate optional wing/room-style filters."""
     if value is None or not value.strip():
         return None
     return sanitize_name(value, field_name)
 
+
 def _tool_status_via_sqlite() -> dict:
     """Qdrant status."""
     return {"backend": "qdrant"}
 
+
 # ── Tool handler functions ────────────────────────────────────────────
+
 
 def tool_status():
     # Run the safe sqlite/pickle probe before we touch the backend. In the
@@ -428,6 +447,7 @@ def tool_status():
         result["partial"] = True
     return result
 
+
 # Included in status response so the AI learns it on first wake-up call.
 # Also available via mempalace_get_aaak_spec tool.
 
@@ -459,6 +479,7 @@ EXAMPLE:
 Read AAAK naturally — expand codes mentally, treat *markers* as emotional context.
 When WRITING AAAK: use entity codes, mark emotions, keep structure tight."""
 
+
 def tool_list_wings():
     col = _get_collection()
     if not col:
@@ -476,6 +497,7 @@ def tool_list_wings():
         result["error"] = str(e)
         result["partial"] = True
     return result
+
 
 def tool_list_rooms(wing: str = None):
     try:
@@ -500,6 +522,7 @@ def tool_list_rooms(wing: str = None):
         result["partial"] = True
     return result
 
+
 def tool_get_taxonomy():
     col = _get_collection()
     if not col:
@@ -520,6 +543,7 @@ def tool_get_taxonomy():
         result["error"] = str(e)
         result["partial"] = True
     return result
+
 
 def tool_search(
     query: str,
@@ -604,6 +628,7 @@ def tool_search(
         result["context_received"] = True
     return result
 
+
 def tool_check_duplicate(content: str, threshold: float = 0.9):
     _refresh_vector_disabled_flag()
     if _vector_disabled:
@@ -656,9 +681,11 @@ def tool_check_duplicate(content: str, threshold: float = 0.9):
         logger.exception("check_duplicate failed")
         return {"error": "Duplicate check failed"}
 
+
 def tool_get_aaak_spec():
     """Return the AAAK dialect specification."""
     return {"aaak_spec": AAAK_SPEC}
+
 
 def tool_traverse_graph(start_room: str, max_hops: int = 2):
     """Walk the palace graph from a room. Find connected ideas across wings."""
@@ -667,6 +694,7 @@ def tool_traverse_graph(start_room: str, max_hops: int = 2):
     if not col:
         return _no_palace()
     return traverse(start_room, col=col, max_hops=max_hops)
+
 
 def tool_find_tunnels(wing_a: str = None, wing_b: str = None):
     """Find rooms that bridge two wings — the hallways connecting domains."""
@@ -680,12 +708,14 @@ def tool_find_tunnels(wing_a: str = None, wing_b: str = None):
         return _no_palace()
     return find_tunnels(wing_a, wing_b, col=col)
 
+
 def tool_graph_stats():
     """Palace graph overview: nodes, tunnels, edges, connectivity."""
     col = _get_collection()
     if not col:
         return _no_palace()
     return graph_stats(col=col)
+
 
 def tool_create_tunnel(
     source_wing: str,
@@ -719,6 +749,7 @@ def tool_create_tunnel(
         target_drawer_id=target_drawer_id,
     )
 
+
 def tool_list_tunnels(wing: str = None):
     """List all explicit cross-wing tunnels, optionally filtered by wing."""
     try:
@@ -727,11 +758,13 @@ def tool_list_tunnels(wing: str = None):
         return {"error": str(e)}
     return list_tunnels(wing)
 
+
 def tool_delete_tunnel(tunnel_id: str):
     """Delete an explicit tunnel by its ID."""
     if not tunnel_id or not isinstance(tunnel_id, str):
         return {"error": "tunnel_id is required"}
     return delete_tunnel(tunnel_id)
+
 
 def tool_follow_tunnels(wing: str, room: str):
     """Follow explicit tunnels from a room to see connected drawers in other wings."""
@@ -742,6 +775,7 @@ def tool_follow_tunnels(wing: str, room: str):
         return {"error": str(e)}
     col = _get_collection()
     return follow_tunnels(wing, room, col=col)
+
 
 def tool_add_drawer(
     wing: str, room: str, content: str, source_file: str = None, added_by: str = "mcp"
@@ -810,6 +844,7 @@ def tool_add_drawer(
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
 def tool_delete_drawer(drawer_id: str):
     """Delete a single drawer by ID."""
     global _metadata_cache
@@ -839,6 +874,7 @@ def tool_delete_drawer(drawer_id: str):
         return {"success": True, "drawer_id": drawer_id}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
 
 def tool_sync(project_dir: str = None, wing: str = None, apply: bool = False):
     """Prune drawers whose source files are gitignored, missing, or moved (#1252)."""
@@ -873,6 +909,7 @@ def tool_sync(project_dir: str = None, wing: str = None, apply: bool = False):
         if apply:
             _metadata_cache = None
 
+
 def tool_get_drawer(drawer_id: str):
     """Fetch a single drawer by ID. Returns full content and metadata."""
     col = _get_collection()
@@ -902,6 +939,7 @@ def tool_get_drawer(drawer_id: str):
         }
     except Exception as e:
         return {"error": str(e)}
+
 
 def tool_list_drawers(wing: str = None, room: str = None, limit: int = 20, offset: int = 0):
     """List drawers with pagination. Optional wing/room filter."""
@@ -960,6 +998,7 @@ def tool_list_drawers(wing: str = None, room: str = None, limit: int = 20, offse
         }
     except Exception as e:
         return {"error": str(e)}
+
 
 def tool_update_drawer(drawer_id: str, content: str = None, wing: str = None, room: str = None):
     """Update an existing drawer's content and/or metadata."""
@@ -1029,6 +1068,7 @@ def tool_update_drawer(drawer_id: str, content: str = None, wing: str = None, ro
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
 def tool_kg_query(entity: str, as_of: str = None, direction: str = "both"):
     """Query the knowledge graph for an entity's relationships."""
     try:
@@ -1042,6 +1082,7 @@ def tool_kg_query(entity: str, as_of: str = None, direction: str = "both"):
 
     results = _call_kg(lambda kg: kg.query_entity(entity, as_of=as_of, direction=direction))
     return {"entity": entity, "as_of": as_of, "facts": results, "count": len(results)}
+
 
 def tool_kg_add(
     subject: str,
@@ -1099,6 +1140,7 @@ def tool_kg_add(
     )
     return {"success": True, "triple_id": triple_id, "fact": f"{subject} → {predicate} → {object}"}
 
+
 def tool_kg_invalidate(subject: str, predicate: str, object: str, ended: str = None):
     """Mark a fact as no longer true.
 
@@ -1136,6 +1178,7 @@ def tool_kg_invalidate(subject: str, predicate: str, object: str, ended: str = N
         "ended": resolved_ended,
     }
 
+
 def tool_kg_timeline(entity: str = None):
     """Get chronological timeline of facts, optionally for one entity."""
     if entity is not None:
@@ -1146,9 +1189,11 @@ def tool_kg_timeline(entity: str = None):
     results = _call_kg(lambda kg: kg.timeline(entity))
     return {"entity": entity or "all", "timeline": results, "count": len(results)}
 
+
 def tool_kg_stats():
     """Knowledge graph overview: entities, triples, relationship types."""
     return _call_kg(lambda kg: kg.stats())
+
 
 def tool_diary_write(agent_name: str, entry: str, topic: str = "general", wing: str = ""):
     """
@@ -1226,6 +1271,7 @@ def tool_diary_write(agent_name: str, entry: str, topic: str = "general", wing: 
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
 def tool_diary_read(agent_name: str, last_n: int = 10, wing: str = ""):
     """
     Read an agent's recent diary entries. Returns the last N entries
@@ -1295,6 +1341,7 @@ def tool_diary_read(agent_name: str, last_n: int = 10, wing: str = ""):
         logger.exception("diary_read failed")
         return {"error": "Failed to read diary entries"}
 
+
 def tool_hook_settings(silent_save: bool = None, desktop_toast: bool = None):
     """
     Get or set hook behavior settings.
@@ -1338,6 +1385,7 @@ def tool_hook_settings(silent_save: bool = None, desktop_toast: bool = None):
         result["updated"] = changed
     return result
 
+
 def tool_memories_filed_away():
     """Acknowledge the latest silent checkpoint. Returns a short summary."""
     state_dir = Path.home() / ".mempalace" / "hook_state"
@@ -1368,6 +1416,7 @@ def tool_memories_filed_away():
             "timestamp": None,
         }
 
+
 def tool_reconnect():
     """Force the MCP server to drop cached state.
 
@@ -1396,6 +1445,7 @@ def tool_reconnect():
         _kg_by_path.clear()
 
     return {"ok": True}
+
 
 # ── MCP protocol versions ─────────────────────────────────────────────
 
