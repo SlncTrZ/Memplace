@@ -5,6 +5,32 @@ No API key required. Exposed via MCP (Model Context Protocol) and CLI.
 
 **Version:** 3.5.0 | **License:** MIT
 
+> **Forked from [MemPalace/mempalace](https://github.com/MemPalace/mempalace)** — nâng cấp toàn diện bởi [@SlncTrZ](https://github.com/SlncTrZ)
+
+---
+
+## 🚀 Nâng cấp từ bản gốc
+
+| Khoản mục | Bản gốc | Bản này |
+|-----------|---------|--------|
+| **MCP Tools** | ~10 tools | **30 tools** — Palace R/W, Knowledge Graph, Navigation, Agent Diary, Hooks |
+| **Storage Backend** | Qdrant-only | **4 backends** — Chroma (default), Qdrant, PgVector, SQLite Exact |
+| **Embedding** | Ollama-dependent | **ONNX local** (zero-dep) + Ollama (optional) |
+| **Knowledge Graph** | ❌ Không có | Temporal entity-relationship graph (SQLite, valid_from/valid_to, invalidation) |
+| **Palace Navigation** | ❌ Không có | Room graph, BFS traversal, cross-wing tunnels, halls |
+| **Agent Diary** | ❌ Không có | AAAK-compressed diary per agent, read/write tools |
+| **i18n** | ❌ Không có | **15 ngôn ngữ** (EN, VI, JA, KO, ZH, FR, DE, ES, RU, IT, PT-BR, HI, ID, BE, ZH-TW) |
+| **Sources Framework** | ❌ Không có | RFC 002 — extensible source adapters for mining |
+| **Auto-Save Hooks** | ❌ Không có | Stop hook (15 msg), PreCompact hook |
+| **AAAK Dialect** | ❌ Không có | Entity codes, emotion markers, 30× lossless compression |
+| **Entity System** | ❌ Không có | Auto-detect people/projects, entity code registry |
+| **CLI** | 5 subcommands | **12+ subcommands** (init, mine, search, split, wake-up, compress, status, repair, mcp, hook, instructions) |
+| **Modules** | 8 modules | **32 modules** — thêm repair, backups, sweeper, migrate, daemon, dynamics, exporter, fact_checker, format_miner, corpus_origin, dedup, hallways, ids, sync, wal, closet_llm, convo_scanner, diary_ingest, spellcheck, sources |
+| **Tests** | ~20 (lỗi import) | **139 tests pass** — protocol, backend registry, Chroma, Qdrant, error classes |
+| **HTTP Server** | ❌ Không có | SSE transport + Qdrant query API + landing page |
+| **Security** | API key trong code | Pre-commit hook, env vars, `.gitignore`, không hardcoded IP |
+| **CLI Entry Point** | Không rõ ràng | `mempalace` + `mempalace-mcp` (pyproject.toml scripts) |
+
 ---
 
 ## Architecture
