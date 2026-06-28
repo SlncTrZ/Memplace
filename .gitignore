@@ -27,3 +27,7 @@ credentials/
 .idea/
 *.swp
 *.swo
+# Qdrant export scripts (may contain personal data)
+scripts/qdrant_export_csv.py
+qdrant_exports/
+*.csv
