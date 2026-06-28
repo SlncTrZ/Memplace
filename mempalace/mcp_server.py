@@ -49,6 +49,7 @@ import hashlib  # noqa: E402
 import sqlite3  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
+import concurrent.futures  # noqa: E402
 from datetime import date, datetime  # noqa: E402
 from pathlib import Path  # noqa: E402
 from typing import Optional  # noqa: E402
@@ -65,7 +66,7 @@ from .version import __version__  # noqa: E402
 
 from .backends.qdrant import QdrantBackend, QdrantCollection  # noqa: E402
 from .query_sanitizer import sanitize_query  # noqa: E402
-from .searcher import search_memories  # noqa: E402
+from .searcher import search_memories, _hybrid_rank  # noqa: E402
 from .palace_graph import (  # noqa: E402
     traverse,
     find_tunnels,
@@ -179,6 +180,7 @@ def _force_chroma_cache_reset() -> None:
     _metadata_cache_time = 0
 
 
+_CONVERSATION_COLLECTION = "meilin_conversation"
 _vector_disabled = False
 _vector_disabled_reason = ""
 _vector_capacity_status = {}
@@ -491,77 +493,91 @@ def tool_get_taxonomy():
     return result
 
 
+
 def tool_search(
-    query: str,
-    limit: int = 5,
-    wing: str = None,
-    room: str = None,
-    max_distance: float = 1.5,
-    min_similarity: float = None,
-    context: str = None,
-):
-    limit = max(1, min(limit, _MAX_RESULTS))
-    try:
-        wing = _sanitize_optional_name(wing, "wing")
-        room = _sanitize_optional_name(room, "room")
-    except ValueError as e:
-        return {"error": str(e)}
-    # Backwards compat: accept old name
-    # Backwards compat: convert old similarity scale (higher=stricter) to
-    # distance scale (lower=stricter). Similarity 0.8 → distance 0.2.
-    dist = (1.0 - min_similarity) if min_similarity is not None else max_distance
-    # Mitigate system prompt contamination (Issue #333)
-    sanitized = sanitize_query(query)
-    # Ensure the vector-disabled probe has been run via the safe
-    # sqlite/pickle path before we touch chromadb. Calling _get_client()
-    # here would defeat the fallback — it constructs a PersistentClient
-    # which can segfault on segment load in the #1222 failure mode.
-    _refresh_vector_disabled_flag()
-    result = search_memories(
-        sanitized["clean_query"],
-        palace_path=_config.palace_path,
-        wing=wing,
-        room=room,
-        n_results=limit,
-        max_distance=dist,
-        vector_disabled=_vector_disabled,
-        collection_name=_config.collection_name,
-    )
-    if _is_transient_index_error(result):
-        # Post-bulk-write HNSW flush window (#1315): drop caches, give
-        # the segment a moment to settle, retry once. Caller never sees
-        # the transient unless the second attempt also fails.
-        _force_chroma_cache_reset()
-        time.sleep(2)
+        query: str,
+        limit: int = 5,
+        wing: str = None,
+        room: str = None,
+        max_distance: float = 1.5,
+        min_similarity: float = None,
+        context: str = None,
+    ):
+        limit = max(1, min(limit, _MAX_RESULTS))
+        try:
+            wing = _sanitize_optional_name(wing, "wing")
+            room = _sanitize_optional_name(room, "room")
+        except ValueError as e:
+            return {"error": str(e)}
+        dist = (1.0 - min_similarity) if min_similarity is not None else max_distance
+        sanitized = sanitize_query(query)
         _refresh_vector_disabled_flag()
-        result = search_memories(
-            sanitized["clean_query"],
-            palace_path=_config.palace_path,
-            wing=wing,
-            room=room,
-            n_results=limit,
-            max_distance=dist,
-            vector_disabled=_vector_disabled,
-        )
-        if not _is_transient_index_error(result):
-            result["index_recovered"] = True
-    if _vector_disabled:
-        result["vector_disabled"] = True
-        result["vector_disabled_reason"] = _vector_disabled_reason
-    # Attach sanitizer metadata for transparency
-    if sanitized["was_sanitized"]:
-        result["query_sanitized"] = True
-        result["sanitizer"] = {
-            "method": sanitized["method"],
-            "original_length": sanitized["original_length"],
-            "clean_length": sanitized["clean_length"],
-            "clean_query": sanitized["clean_query"],
+
+        # Parallel search across multiple collections
+        collections_to_search = [_config.collection_name]
+        if not wing and not room:
+            collections_to_search.append(_CONVERSATION_COLLECTION)
+
+        def _run_search(coll: str) -> dict:
+            return search_memories(
+                sanitized["clean_query"],
+                palace_path=_config.palace_path,
+                wing=wing,
+                room=room,
+                n_results=limit,
+                max_distance=dist,
+                vector_disabled=_vector_disabled,
+                collection_name=coll,
+            )
+
+        results_list = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            fut_map = {executor.submit(_run_search, c): c for c in collections_to_search}
+            for f in concurrent.futures.as_completed(fut_map):
+                try:
+                    r = f.result()
+                    if r and "results" in r:
+                        r["_source_collection"] = fut_map[f]
+                        results_list.append(r)
+                except Exception as exc:
+                    logger.error("Search failed for %s: %s", fut_map[f], exc)
+
+        # Merge and dedup results across collections
+        merged = []
+        seen = set()
+        for r in results_list:
+            for hit in r.get("results", []):
+                key = (hit.get("source_file", "?"), hit.get("text", "")[:80])
+                if key not in seen:
+                    seen.add(key)
+                    hit["_collection"] = r.get("_source_collection", "")
+                    merged.append(hit)
+
+        merged = _hybrid_rank(merged, sanitized["clean_query"])
+        total_all = sum(r.get("total_before_filter", 0) for r in results_list)
+
+        result = {
+            "query": query,
+            "filters": {"wing": wing, "room": room},
+            "total_before_filter": total_all,
+            "results": merged[:limit],
+            "searched_collections": collections_to_search,
         }
-    if context:
-        result["context_received"] = True
-    return result
 
-
+        if _vector_disabled:
+            result["vector_disabled"] = True
+            result["vector_disabled_reason"] = _vector_disabled_reason
+        if sanitized["was_sanitized"]:
+            result["query_sanitized"] = True
+            result["sanitizer"] = {
+                "method": sanitized["method"],
+                "original_length": sanitized["original_length"],
+                "clean_length": sanitized["clean_length"],
+                "clean_query": sanitized["clean_query"],
+            }
+        if context:
+            result["context_received"] = True
+        return result
 def tool_check_duplicate(content: str, threshold: float = 0.9):
     _refresh_vector_disabled_flag()
     if _vector_disabled:
