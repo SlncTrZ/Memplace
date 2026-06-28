@@ -608,9 +608,9 @@ def tool_search(
         total_before = 0
         searched_collections = [_config.collection_name]
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            fut_drawers = executor.submit(
-                search_memories,
+        # Sequential search
+        try:
+            dr = search_memories(
                 sanitized["clean_query"],
                 palace_path=_config.palace_path,
                 wing=wing,
@@ -620,42 +620,27 @@ def tool_search(
                 vector_disabled=_vector_disabled,
                 collection_name=_config.collection_name,
             )
-
-            fut_conv = None
-            if not wing and not room:
-                searched_collections.append(_CONVERSATION_COLLECTION)
-                fut_conv = executor.submit(
-                    _search_conversation,
-                    sanitized["clean_query"],
-                    limit,
-                    dist,
-                )
-
-            # Process drawers result
-            try:
-                dr = fut_drawers.result()
-                if dr and "results" in dr:
-                    for hit in dr["results"]:
-                        hit["_collection"] = _config.collection_name
-                        merged.append(hit)
+            if dr and "results" in dr:
+                for hit in dr["results"]:
+                    hit["_collection"] = _config.collection_name
+                    merged.append(hit)
                     total_before += dr.get("total_before_filter", 0)
+        except Exception as exc:
+            logger.error("Drawers search failed: %s", exc)
+
+        if not wing and not room:
+            searched_collections.append(_CONVERSATION_COLLECTION)
+            try:
+                conv_hits = _search_conversation(sanitized["clean_query"], limit, dist)
+                for hit in conv_hits:
+                    key = (hit.get("source_file", "?"), hit.get("text", "")[:80])
+                    if key not in seen:
+                        seen.add(key)
+                        merged.append(hit)
+                        total_before += 1
             except Exception as exc:
-                logger.error("Drawers search failed: %s", exc)
+                logger.error("Conversation search failed: %s", exc)
 
-            # Process conversation result (direct Qdrant query + metadata mapping)
-            if fut_conv is not None:
-                try:
-                    conv_hits = fut_conv.result()
-                    for hit in conv_hits:
-                        key = (hit.get("source_file", "?"), hit.get("text", "")[:80])
-                        if key not in seen:
-                            seen.add(key)
-                            merged.append(hit)
-                            total_before += 1
-                except Exception as exc:
-                    logger.error("Conversation search failed: %s", exc)
-
-        # Re-rank merged results with hybrid BM25
         merged = _hybrid_rank(merged, sanitized["clean_query"])
 
         result = {

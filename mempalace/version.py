@@ -1,8 +1,3 @@
-"""version — MemPalace version.
+"""Single source of truth for the MemPalace package version."""
 
-Wing: openclaw
-Topic: mempalace_qdrant
-Last Updated: 2026-04-24
-"""
-
-__version__ = "4.0.0"
+__version__ = "3.5.0"

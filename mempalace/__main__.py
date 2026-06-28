@@ -1,14 +1,5 @@
-"""__main__ — CLI entry point for mempalace.
+"""Allow running as: python -m mempalace"""
 
-Wing: openclaw
-Topic: mempalace_qdrant
-Last Updated: 2026-04-24
-"""
+from .cli import main
 
-from .mcp_server import run_stdio
-
-def main():
-    run_stdio()
-
-if __name__ == "__main__":
-    main()
+main()
