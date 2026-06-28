@@ -5,39 +5,33 @@ Cảm ơn bạn đã quan tâm đến dự án MemPalace!
 ## Yêu cầu
 
 - Python 3.9+
-- Qdrant server (local hoặc remote)
-- Ollama (cho embedding, optional)
+- Palace backend: ChromaDB (default, zero-config), Qdrant, PgVector, hoặc SQLite Exact
+- Ollama (optional, cho embedding) | ONNX model local (default, zero-dependency)
 
 ## Thiết lập môi trường
 
 ```bash
 # Clone repository
-git clone https://github.com/truongcongdinh97/Memplace.git
+git clone https://github.com/SlncTrZ/Memplace.git
 cd Memplace
 
 # Cài đặt với dev dependencies
 pip install -e ".[dev]"
 
-# Copy và cấu hình environment
-cp .env.example .env
-# Chỉnh sửa .env với thông tin Qdrant/Ollama của bạn
-
-# Chạy tests
+# Chạy tests (default Chroma backend — không cần config)
 python -m pytest tests/ -v
 ```
 
 ## Kiến trúc
 
-MemPalace sử dụng kiến trúc **6-Wing Knowledge Palace** với Qdrant:
+MemPalace sử dụng kiến trúc **Multi-Backend Palace**:
 
-| Wing | Collection | Purpose |
-|------|-----------|---------|
-| tcdserver | meilin_tcdserver | Server infrastructure |
-| openclaw | meilin_openclaw | AI/MeiLin knowledge |
-| robotics | meilin_robotics | Robotics & hardware |
-| code_chronicles | meilin_code_chronicles | Code history |
-| omniscience_wiki | meilin_omniscience_wiki | General knowledge |
-| conversation | meilin_conversation | Conversation memory |
+- **Palace** — stores verbatim content (drawers) in rooms within wings
+  - Backends: Chroma (default), Qdrant, PgVector, SQLite Exact
+- **Knowledge Graph** — temporal entity relationships (SQLite)
+- **Palace Graph** — room-to-room navigation, cross-wing tunnels
+
+Default backend (Chroma) không yêu cầu server, không API key.
 
 ## Quy trình phát triển
 
@@ -74,13 +68,13 @@ git commit -m "feat: mô tả ngắn gọn"
 git push origin feature/ten-feature
 ```
 
-## MCP Tools
+## MCP Tools (30 tools)
 
 Khi thêm MCP tool mới:
 
-1. Định nghĩa tool trong `mempalace/mcp_server.py`
+1. Định nghĩa tool trong `mempalace/mcp_server.py` (thêm vào `TOOLS` dict + viết handler function)
 2. Thêm tests trong `tests/test_mcp_server.py`
-3. Cập nhật README.md danh sách tools
+3. Cập nhật danh sách tools trong `README.md` và `mempalace/instructions/help.md`
 
 ## Commit Convention
 

@@ -57,6 +57,7 @@ python scripts/pre_commit_check.py
 ```
 
 The hook will:
+
 - ✅ Block commits containing API keys
 - ✅ Allow placeholders (`your_key_here`, `example`)
 - ✅ Check `.py`, `.json`, `.yaml`, `.yml`, `.env` files
@@ -166,6 +167,6 @@ python -m mempalace
 If you find a security vulnerability:
 
 1. **DO NOT** create public issue/PR
-2. Email: security@yourdomain.com
+2. Open a [GitHub Security Advisory](https://github.com/SlncTrZ/Memplace/security/advisories)
 3. Include: description, reproduction steps, impact
 4. Wait for fix before disclosure

@@ -1,156 +1,177 @@
-# MemPalace — Multi-Wing Memory Palace
+# MemPalace — Local-First AI Memory Palace
 
-Qdrant-backed knowledge management cho AI assistants, exposed qua MCP (Model Context Protocol).
+Give your AI a memory. Mine projects and conversations into a searchable palace.
+No API key required. Exposed via MCP (Model Context Protocol) and CLI.
 
-## Kiến trúc
+**Version:** 3.5.0 | **License:** MIT
+
+---
+
+## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│           MCP Client (Cline/AI)             │
-│              ↓ stdio JSON-RPC               │
-├─────────────────────────────────────────────┤
-│           mcp_server.py (10 tools)          │
-│           dispatch_tool()                   │
-├─────────────────────────────────────────────┤
-│           qdrant_bridge.py                  │
-│           get_embedding()                   │
-├────────────────────┬────────────────────────┤
-│    Ollama API      │    Qdrant REST API     │
-│  nomic-embed-text  │  Multi-Wing collections │
-│  768 dimensions    │  (dynamic, user-config) │
-└────────────────────┴────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│         MCP Client (Claude Code / Cline)         │
+│              ↓ stdio JSON-RPC                    │
+├──────────────────────────────────────────────────┤
+│          mcp_server.py — 30 MCP tools            │
+├──────────────────────────────────────────────────┤
+│   CLI (mempalace) ←→ Palace (ChromaDB / Qdrant) │
+│                    ↕                             │
+│         Knowledge Graph (SQLite, temporal)       │
+│                    ↕                             │
+│      Palace Graph (room navigation, tunnels)     │
+├──────────────────────────────────────────────────┤
+│   Backends: Chroma | Qdrant | PgVector | SQLite  │
+│   Embeddings: ONNX (local) | Ollama | external   │
+└──────────────────────────────────────────────────┘
 ```
 
-### Wings Architecture
+### Palace Structure
 
-**Multi-Wing Palace**: Số lượng wings phụ thuộc vào Qdrant collections có sẵn.
+```
+Wings (projects/people)
+  └── Rooms (topics)
+        └── Closets (summaries)
+              └── Drawers (verbatim memories)
 
-Users có thể:
-- Sử dụng default 6 wings: tcdserver, openclaw, robotics, code_chronicles, omniscience_wiki, conversation
-- Custom wings bằng cách tạo Qdrant collections với prefix `meilin_*`
-- Config qua environment variable `WING_COLLECTIONS` (JSON format)
+Halls  → connect rooms within a wing
+Tunnels → connect rooms across wings
+```
 
-**Default Wings:**
+## MCP Tools — 30 tools
 
-| Wing | Collection | Purpose |
-|------|-----------|---------|
-| tcdserver | meilin_tcdserver | Server infrastructure & operations |
-| openclaw | meilin_openclaw | AI/MeiLin knowledge & skills |
-| robotics | meilin_robotics | Robotics & hardware |
-| code_chronicles | meilin_code_chronicles | Code evolution history |
-| omniscience_wiki | meilin_omniscience_wiki | General knowledge encyclopedia |
-| conversation | meilin_conversation | Chat history & memory |
-
-## MCP Tools
-
-### System
+### Palace (Read)
 
 | Tool | Description |
 |------|-------------|
-| `mempalace_status` | Overview all wings (points, vectors, indexed, status) - dynamic based on Qdrant |
+| `mempalace_status` | Palace overview — total drawers, wing & room counts |
+| `mempalace_list_wings` | List all wings with drawer counts |
+| `mempalace_list_rooms` | List rooms within a wing (or all) |
+| `mempalace_get_taxonomy` | Full taxonomy: wing → room → drawer count |
+| `mempalace_search` | Semantic search — query, wing/room filter, distance threshold |
+| `mempalace_check_duplicate` | Check if content already exists before filing |
+| `mempalace_get_drawer` | Fetch a single drawer by ID (full content + metadata) |
+| `mempalace_list_drawers` | List drawers with pagination, wing/room filter |
+| `mempalace_get_aaak_spec` | Get the AAAK dialect specification |
 
-### Search & Store
+### Palace (Write)
 
-| Tool | Params | Description |
-|------|--------|-------------|
-| `mempalace_search` | `query`, `wing?`, `limit?`(1-50), `score_threshold?`(0-1) | Semantic search across wings |
-| `mempalace_store` | `content`, `wing?`(default=openclaw), `topic?`, `entity_name?`, `entity_type?`, `importance?` | Store knowledge |
-| `mempalace_knowledge_store` | `content`, `wing`, `topic`, `entity_name?`, `entity_type?`, `importance?`, `change_reason?` | Store with Knowledge Evolution |
-| `mempalace_knowledge_search` | `query`, `wing?`, `topic?`, `limit?` | Search across wings (depends on config) |
-| `knowledge_timeline` | `wing`, `entity_name?`, `source_file?` | View entity evolution history |
+| Tool | Description |
+|------|-------------|
+| `mempalace_add_drawer` | File verbatim content into a wing/room |
+| `mempalace_update_drawer` | Update an existing drawer's content / metadata |
+| `mempalace_delete_drawer` | Delete a drawer by ID (irreversible) |
+| `mempalace_sync` | Prune drawers from deleted/moved source files |
 
-### Conversation
+### Knowledge Graph (Temporal Facts)
 
-| Tool | Params | Description |
-|------|--------|-------------|
-| `mempalace_conversation_save` | `content`, `channel`, `role?`, `session_id?`, `importance?` | Save to conversation wing |
-| `mempalace_conversation_recall` | `query`, `channel?`, `limit?` | Search conversation history |
+| Tool | Description |
+|------|-------------|
+| `mempalace_kg_query` | Query entity relationships (outgoing/incoming/both) with temporal filter |
+| `mempalace_kg_add` | Add a fact: subject → predicate → object (optional valid_from/valid_to) |
+| `mempalace_kg_invalidate` | Mark a fact as no longer true |
+| `mempalace_kg_timeline` | Chronological timeline of facts for an entity (or all) |
+| `mempalace_kg_stats` | Knowledge graph overview: entities, triples, current vs expired |
 
-### Technical Knowledge
+### Navigation (Palace Graph)
 
-| Tool | Params | Description |
-|------|--------|-------------|
-| `tech_store` | `content`, `action`, `subject`, `importance?` | Store tech knowledge (wing=openclaw, entity_type=tech) |
-| `tech_find` | `query`, `wing?` | Search tech knowledge |
+| Tool | Description |
+|------|-------------|
+| `mempalace_traverse` | Walk the palace graph from a room (BFS, max_hops) |
+| `mempalace_find_tunnels` | Find rooms bridging two wings |
+| `mempalace_create_tunnel` | Create a cross-wing tunnel |
+| `mempalace_list_tunnels` | List all explicit tunnels (optional wing filter) |
+| `mempalace_delete_tunnel` | Delete a tunnel by ID |
+| `mempalace_follow_tunnels` | Follow tunnels from a room to connected wings |
+| `mempalace_graph_stats` | Graph overview: rooms, tunnels, edges between wings |
+
+### Agent Diary
+
+| Tool | Description |
+|------|-------------|
+| `mempalace_diary_write` | Write to agent diary in AAAK format |
+| `mempalace_diary_read` | Read recent diary entries |
+
+### Settings & Hooks
+
+| Tool | Description |
+|------|-------------|
+| `mempalace_hook_settings` | Get/set hook behavior (silent_save, desktop_toast) |
+| `mempalace_memories_filed_away` | Check if a recent checkpoint was saved |
+| `mempalace_reconnect` | Force reconnect after external writes |
+
+## CLI Commands
+
+```bash
+mempalace init <dir>                  Initialize a new palace
+mempalace mine <dir>                  Mine a project (default mode)
+mempalace mine <dir> --mode convos    Mine conversation exports
+mempalace search "query"              Search your memories
+mempalace split <dir>                 Split large transcript files
+mempalace wake-up                     Load palace into context
+mempalace compress                    Compress palace storage
+mempalace status                      Show palace status
+mempalace repair                      Rebuild vector index
+mempalace mcp                         Show MCP setup command
+mempalace hook run                    Run hook logic (for harness)
+mempalace instructions <name>         Output skill instructions
+```
 
 ## Setup
 
 ```bash
 pip install -e ".[dev]"
+# Or: pip install mempalace
 ```
 
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `QDRANT_URL` | `http://192.168.1.227:6333` | Qdrant server URL |
-| `QDRANT_API_KEY` | (required) | Qdrant API key - **NEVER commit to git** |
-| `OLLAMA_URL` | `http://ollama:11434` | Ollama server URL |
-| `EMBED_MODEL` | `nomic-embed-text:latest` | Embedding model name |
-| `WING_COLLECTIONS` | (auto-fetch) | JSON string mapping wings to Qdrant collections |
+| `MEMPALACE_HOME` | `~/.mempalace` | Palace data directory |
+| `MEMPALACE_EMBEDDING_DEVICE` | `auto` | Embedding device: `cpu`, `cuda`, `dml`, `coreml` |
+| `PALACE_BACKEND` | `chroma` | Storage backend: `chroma`, `qdrant`, `pgvector`, `sqlite_exact` |
+| `PALACE_PATH` | (auto) | Explicit palace path |
+| `QDRANT_URL` | `http://localhost:6333` | Qdrant server URL (qdrant backend) |
+| `OLLAMA_URL` | `http://localhost:11434` | Ollama server URL (optional) |
 
-### Security: Protect API Keys
+## Backends
 
-**CRITICAL: Khi public/commit GitHub repo:**
+| Backend | Purpose |
+|---------|---------|
+| **Chroma** (default) | Local vector store — zero config, no server needed |
+| **Qdrant** | Remote vector DB — for shared/multi-client palaces |
+| **PgVector** | PostgreSQL vector extension — for existing Postgres deployments |
+| **SQLite Exact** | Exact (brute-force) search — debug, tiny palaces, CI |
 
-1. **Luôn dùng `.env` file** (đã có trong `.gitignore`)
-2. **Không bao giờ hardcode API keys** trong code
-3. **Chỉ commit `.env.example`** với placeholder values
-4. **Verifying `.gitignore`** contains:
-   ```
-   .env
-   *.key
-   *_secrets.json
-   ```
+## Embedding Options
 
-5. **Pre-commit hook (recommended):**
-   ```bash
-   # .git/hooks/pre-commit
-   if git diff --cached --name-only | grep -E '\.(py|json|yaml|yml)$'; then
-       if git diff --cached | grep -E 'api[_-]?key.*[=:][[:space:]]*['\''"'][^'\''"]+['\''"']'; then
-           echo "ERROR: API key detected in staged files!"
-           exit 1
-       fi
-   fi
-   ```
+- **Local ONNX model** (default) — zero-dependency, no API key
+- **Ollama** — `nomic-embed-text:latest` (768d) or other models
+- External embedding API (custom adapters)
 
-### Custom Wings
+## Key Modules
 
-Tùy chỉnh wings bằng environment variable:
-
-```bash
-export WING_COLLECTIONS='{"wing1": "meilin_wing1", "wing2": "meilin_wing2"}'
-python -m mempalace
-```
-
-Hoặc tạo collections trong Qdrant với prefix `meilin_*` - MemPlace sẽ auto-detect.
-
-## Payload Structure
-
-```json
-{
-  "content": "knowledge text...",
-  "metadata": {
-    "wing": "openclaw",
-    "topic": "docker_config",
-    "entity_type": "config",
-    "entity_name": "qdrant_setup",
-    "importance": "high",
-    "version": 1,
-    "status": "active",
-    "source": "mempalace_mcp",
-    "created_at": "2026-04-23T10:30:00"
-  }
-}
-```
-
-## Embedding Pipeline
-
-- Model: `nomic-embed-text:latest` via Ollama
-- Dimension: 768
-- Text truncated to 800 chars for embedding
-- Min content: 5 chars (embed), 10 chars (store)
-- Score threshold default: 0.3
+| Module | Description |
+|--------|-------------|
+| `cli.py` | CLI entry point — 12+ subcommands |
+| `mcp_server.py` | MCP server — 30 MCP tools |
+| `miner.py` | Project file ingest — chunks by paragraph |
+| `convo_miner.py` | Conversation ingest — exchange pairs, room detection |
+| `searcher.py` | Semantic search with filters |
+| `layers.py` | 4-layer memory stack (L0 identity → L3 deep search) |
+| `dialect.py` | AAAK compression — entity codes, 30× lossless ratio |
+| `knowledge_graph.py` | Temporal entity-relationship graph (SQLite) |
+| `palace_graph.py` | Room-based navigation graph (BFS, tunnels) |
+| `entity_registry.py` | Entity code registry — AAAK codes, ambiguous names |
+| `entity_detector.py` | Auto-detect people/projects from file content |
+| `normalize.py` | Convert 5 chat formats to standard transcript |
+| `onboarding.py` | Guided first-run setup |
+| `backups.py` | Palace backup & restore |
+| `repair.py` | Rebuild corrupted vector indices |
+| `sweeper.py` | Clean up stale/expired drawers |
+| `migrate.py` | Schema migration across versions |
 
 ## Test
 
@@ -162,12 +183,13 @@ python -m pytest tests/ -v
 
 | Script | Purpose |
 |--------|---------|
-| `check_qdrant.py` | Check all collections status (dynamic wings) |
-| `test_search.py` | Manual semantic search test |
-| `test_embed.py` | Test single point embedding |
-| `embed_all.py` | Full embedding pipeline |
-| `embed_remaining.py` | Embed remaining unprocessed points |
-| `fix_threshold.py` | Lower indexing_threshold for small collections |
+| `scripts/check_qdrant.py` | Check Qdrant collections status |
+| `scripts/pre_commit_check.py` | Pre-commit API key scanner |
+| `scripts/embed_all.py` | Full embedding pipeline |
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for API key protection and pre-commit hook setup.
 
 ## License
 

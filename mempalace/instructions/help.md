@@ -16,37 +16,55 @@ AI memory system. Store everything, find anything. Local, free, no API key.
 
 ---
 
-## MCP Tools (19)
+## MCP Tools (30)
 
 ### Palace (read)
-- mempalace_status -- Palace status and stats
-- mempalace_list_wings -- List all wings
-- mempalace_list_rooms -- List rooms in a wing
-- mempalace_get_taxonomy -- Get the full taxonomy tree
-- mempalace_search -- Search memories by query
+
+- mempalace_status -- Palace overview — total drawers, wing & room counts
+- mempalace_list_wings -- List all wings with drawer counts
+- mempalace_list_rooms -- List rooms within a wing (or all)
+- mempalace_get_taxonomy -- Full taxonomy: wing → room → drawer count
+- mempalace_search -- Semantic search with wing/room filter, distance threshold
 - mempalace_check_duplicate -- Check if a memory already exists
-- mempalace_get_aaak_spec -- Get the AAAK specification
+- mempalace_get_drawer -- Fetch a single drawer by ID (full content + metadata)
+- mempalace_list_drawers -- List drawers with pagination (wing/room filter, limit/offset)
+- mempalace_get_aaak_spec -- Get the AAAK dialect specification
 
 ### Palace (write)
-- mempalace_add_drawer -- Add a new memory (drawer)
-- mempalace_checkpoint -- Save a whole session in one call (dedup + file + diary)
-- mempalace_delete_drawer -- Delete a memory (drawer)
+
+- mempalace_add_drawer -- File verbatim content into a wing/room
+- mempalace_update_drawer -- Update an existing drawer's content / metadata
+- mempalace_delete_drawer -- Delete a drawer by ID (irreversible)
+- mempalace_sync -- Prune drawers from deleted/moved source files (dry-run by default)
 
 ### Knowledge Graph
-- mempalace_kg_query -- Query the knowledge graph
-- mempalace_kg_add -- Add a knowledge graph entry
-- mempalace_kg_invalidate -- Invalidate a knowledge graph entry
-- mempalace_kg_timeline -- View knowledge graph timeline
-- mempalace_kg_stats -- Knowledge graph statistics
 
-### Navigation
-- mempalace_traverse -- Traverse the palace structure
-- mempalace_find_tunnels -- Find cross-wing connections
-- mempalace_graph_stats -- Graph connectivity statistics
+- mempalace_kg_query -- Query entity relationships (outgoing/incoming/both, temporal filter)
+- mempalace_kg_add -- Add a fact: subject → predicate → object (optional valid_from/valid_to)
+- mempalace_kg_invalidate -- Mark a fact as no longer true
+- mempalace_kg_timeline -- Chronological timeline of facts
+- mempalace_kg_stats -- Knowledge graph overview: entities, triples, current vs expired
+
+### Navigation (Palace Graph)
+
+- mempalace_traverse -- Walk the palace graph from a room (BFS, max_hops)
+- mempalace_find_tunnels -- Find rooms bridging two wings
+- mempalace_create_tunnel -- Create a cross-wing tunnel
+- mempalace_list_tunnels -- List all explicit tunnels (optional wing filter)
+- mempalace_delete_tunnel -- Delete a tunnel by ID
+- mempalace_follow_tunnels -- Follow tunnels from a room to connected wings
+- mempalace_graph_stats -- Graph overview: rooms, tunnels, edges between wings
 
 ### Agent Diary
-- mempalace_diary_write -- Write a diary entry
-- mempalace_diary_read -- Read diary entries
+
+- mempalace_diary_write -- Write to agent diary in AAAK format
+- mempalace_diary_read -- Read recent diary entries
+
+### Settings & Hooks
+
+- mempalace_hook_settings -- Get/set hook behavior (silent_save, desktop_toast)
+- mempalace_memories_filed_away -- Check if a recent checkpoint was saved
+- mempalace_reconnect -- Force reconnect after external writes
 
 ---
 
