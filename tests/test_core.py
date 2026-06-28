@@ -90,7 +90,9 @@ class TestVersion:
     def test_version_consistency(self):
         from mempalace.version import __version__
 
-        pyproject = open("H:/Develop/Memplace/pyproject.toml").read()
+        import os
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        pyproject = open(os.path.join(root, "pyproject.toml")).read()
         match = re.search(r'version\s*=\s*"([^"]+)"', pyproject)
         assert match is not None
         assert match.group(1) == __version__
