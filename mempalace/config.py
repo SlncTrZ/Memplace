@@ -196,7 +196,7 @@ def sanitize_content(value: str, max_length: int = 100_000) -> str:
 
 DEFAULT_PALACE_PATH = os.path.expanduser("~/.mempalace/palace")
 DEFAULT_COLLECTION_NAME = "mempalace_drawers"
-DEFAULT_BACKEND = "chroma"
+DEFAULT_BACKEND = "qdrant"
 
 # How many timestamped palace backups to retain before the oldest are
 # pruned. Applies to the accumulating backups written by ``mempalace
@@ -381,7 +381,7 @@ class MempalaceConfig:
 
     @property
     def qdrant_url(self):
-        """Qdrant endpoint for the opt-in ``qdrant`` backend.
+        """Qdrant endpoint for the default ``qdrant`` backend.
 
         Defaults to localhost so selecting Qdrant never silently sends memory
         to a remote service. Users can point at a LAN or cloud endpoint via

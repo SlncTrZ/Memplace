@@ -56,7 +56,7 @@ SKIP_DIRS = {
     "target",
 }
 
-_DEFAULT_BACKEND = get_backend("chroma")
+_DEFAULT_BACKEND = get_backend("qdrant")
 _EXPLICIT_BACKEND_ENV = "MEMPALACE_BACKEND_EXPLICIT"
 
 # Schema version for drawer normalization. Bump when the normalization
@@ -302,7 +302,7 @@ def resolve_backend_name(palace_path: str, explicit: Optional[str] = None) -> st
     2. ``backend`` in ``~/.mempalace/config.json``.
     3. ``MEMPALACE_BACKEND``.
     4. Detected existing palace artifacts.
-    5. ``chroma``.
+    5. ``qdrant``.
 
     If artifacts for a different backend are already present, raise
     ``BackendMismatchError`` so normal write paths cannot silently mix storage
@@ -314,7 +314,7 @@ def resolve_backend_name(palace_path: str, explicit: Optional[str] = None) -> st
         config_value=_config_backend_value(palace_path),
         env_value=_env_backend_value(),
         palace_path=palace_path,
-        default="chroma",
+        default="qdrant",
     )
     get_backend_class(selected)
     detected_backends = detect_backends_for_path(palace_path)
@@ -338,10 +338,10 @@ def get_backend_for_palace(palace_path: str, explicit: Optional[str] = None):
 
 
 def _backend_artifact_label(backend_name: Optional[str]) -> str:
-    if backend_name == "chroma":
-        return "chroma.sqlite3"
     if backend_name == "qdrant":
         return "qdrant_backend.json"
+    if backend_name == "pgvector":
+        return "pgvector_backend.json"
     if backend_name == "pgvector":
         return "pgvector_backend.json"
     if backend_name == "sqlite_exact":

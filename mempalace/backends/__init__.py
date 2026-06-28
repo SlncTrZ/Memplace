@@ -11,7 +11,7 @@ Public surface:
   :class:`EmbedderIdentityMismatchError`.
 * Registry: :func:`get_backend`, :func:`register`, :func:`available_backends`,
   :func:`resolve_backend_for_palace`.
-* In-tree Chroma default: :class:`ChromaBackend`, :class:`ChromaCollection`.
+* In-tree backends: :class:`QdrantBackend`, :class:`PgVectorBackend`, :class:`SQLiteExactBackend`.
 """
 
 from .base import (
@@ -35,7 +35,6 @@ from .base import (
     UnsupportedFilterError,
     UnsupportedMaintenanceKindError,
 )
-from .chroma import ChromaBackend, ChromaCollection
 from .pgvector import PgVectorBackend, PgVectorCollection
 from .qdrant import QdrantBackend, QdrantCollection
 from .sqlite_exact import SQLiteExactBackend, SQLiteExactCollection
@@ -57,8 +56,6 @@ __all__ = [
     "BackendMismatchError",
     "BaseBackend",
     "BaseCollection",
-    "ChromaBackend",
-    "ChromaCollection",
     "CollectionNotInitializedError",
     "DimensionMismatchError",
     "EmbedderIdentityMismatchError",

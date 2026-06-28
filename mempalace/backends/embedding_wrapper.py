@@ -19,7 +19,7 @@ def _embed_texts(texts: list[str]) -> list[list[float]]:
 
 
 def _as_list(value):
-    """Normalize ChromaDB's ``OneOrMany`` shape (``str`` | ``dict`` | sequence) to a list.
+    """Normalize input (``str`` | ``dict`` | sequence) to a list.
 
     A bare ``str`` (a document/id) or ``dict`` (a single metadata) must be
     *wrapped*, not iterated: ``list("abc")`` yields ``['a', 'b', 'c']`` and

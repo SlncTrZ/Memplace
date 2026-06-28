@@ -197,7 +197,7 @@ def _refresh_vector_disabled_flag() -> None:
 
 def _search_conversation(query: str, limit: int = 5, max_distance: float = 1.5) -> list:
     """Search conversation collection using the resolved backend.
-    
+
     Uses the same backend resolution as other tools (MEMPALACE_BACKEND env var,
     config, or default Chroma). Falls back gracefully if the conversation
     collection doesn't exist in the selected backend.
@@ -205,6 +205,7 @@ def _search_conversation(query: str, limit: int = 5, max_distance: float = 1.5) 
     try:
         backend = _get_client()
         from .backends.base import PalaceRef
+
         palace_ref = PalaceRef(
             id=_config.palace_path or "default",
             local_path=_config.palace_path,
@@ -356,6 +357,7 @@ def _get_client():
         except Exception:
             logger.debug("Backend resolution failed, falling back to Chroma")
             from .backends import get_backend
+
             _client_cache = get_backend("chroma")
         _collection_cache = None
         _metadata_cache = None
