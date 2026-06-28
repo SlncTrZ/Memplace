@@ -151,16 +151,17 @@ class TestBackendRegistry:
 
         class OverrideQdrant(BaseBackend):
             name = "qdrant_override"
-    
+
             def get_collection(self, *args, **kwargs):
                 return _ConcreteCollection()
-    
+
         register("qdrant", OverrideQdrant)
         inst = get_backend("qdrant")
         assert isinstance(inst, OverrideQdrant)
-    
+
         # Restore original backend so subsequent tests are not poisoned.
         from mempalace.backends.qdrant import QdrantBackend
+
         register("qdrant", QdrantBackend)
         reset_backends()
 
@@ -178,34 +179,34 @@ class TestBackendRegistry:
         def test_resolve_backend_picks_config_when_no_explicit(self):
             """resolve_backend_for_palace falls back to config value."""
             result = resolve_backend_for_palace(
-            explicit=None,
-            config_value="pgvector",
-            env_value="qdrant",
-            palace_path="/tmp/fake",
-            default="qdrant",
-        )
+                explicit=None,
+                config_value="pgvector",
+                env_value="qdrant",
+                palace_path="/tmp/fake",
+                default="qdrant",
+            )
             assert result == "pgvector"
 
         def test_resolve_backend_picks_env_when_no_explicit_or_config(self):
             """resolve_backend_for_palace falls back to env value."""
             result = resolve_backend_for_palace(
-            explicit=None,
-            config_value=None,
-            env_value="sqlite_exact",
-            palace_path=None,
-            default="qdrant",
-        )
+                explicit=None,
+                config_value=None,
+                env_value="sqlite_exact",
+                palace_path=None,
+                default="qdrant",
+            )
             assert result == "sqlite_exact"
 
         def test_resolve_backend_default_when_nothing_set(self):
             """resolve_backend_for_palace returns default when no prior rule matched."""
             result = resolve_backend_for_palace(
-            explicit=None,
-            config_value=None,
-            env_value=None,
-            palace_path=None,
-            default="qdrant",
-        )
+                explicit=None,
+                config_value=None,
+                env_value=None,
+                palace_path=None,
+                default="qdrant",
+            )
             assert result == "qdrant"
 
         def test_get_backend_class(self):
@@ -439,7 +440,6 @@ class TestPalaceRef:
 # ---------------------------------------------------------------------------
 # ChromaBackend tests (mocked chromadb)
 # ---------------------------------------------------------------------------
-
 
 
 class TestQdrantBackend:
