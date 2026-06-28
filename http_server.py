@@ -3,6 +3,7 @@
 HTTP wrapper for MemPalace MCP Server — with SSE transport, static files + Qdrant query API.
 Wing: tcdserver | Topic: mempalace | Updated: 2026-06-26
 """
+
 import subprocess
 import json
 import asyncio
@@ -37,10 +38,9 @@ _process_lock = asyncio.Lock()
 _stdout_reader_task: Optional[asyncio.Task] = None
 
 
-
-def _get_qdrant_backend():
+def _get_qdrant_backend() -> Any:
     """Lazy-init QdrantBackend from mempalace.backends registry."""
-    return get_backend("qdrant")  # noqa: F821
+    return get_backend("qdrant")
 
 
 async def _mcp_stdout_reader():
@@ -63,7 +63,7 @@ async def _mcp_stdout_reader():
             reader_count = 0
             response = json.loads(line.strip())
             req_id = response.get("id")
-            logger.info(f"MCP stdout: id={req_id} method={response.get('method','?')}")
+            logger.info(f"MCP stdout: id={req_id} method={response.get('method', '?')}")
 
             if req_id is not None and req_id in _pending_responses:
                 future = _pending_responses.pop(req_id)
@@ -85,7 +85,9 @@ async def _mcp_stdout_reader():
     logger.info("MCP stdout reader stopped")
 
 
-async def call_mcp(method: str, params: Dict[str, Any] = None, request_id: Any = None) -> Dict[str, Any]:
+async def call_mcp(
+    method: str, params: Dict[str, Any] = None, request_id: Any = None
+) -> Dict[str, Any]:
     """Write JSON-RPC to subprocess stdin, await response via background reader.
 
     Args:
@@ -142,7 +144,7 @@ async def startup():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        bufsize=0
+        bufsize=0,
     )
     logger.info(f"MCP server started with PID {mcp_process.pid}")
     _stdout_reader_task = asyncio.create_task(_mcp_stdout_reader())
@@ -168,6 +170,7 @@ async def shutdown():
 
 # --- Legacy POST /mcp (direct JSON-RPC bridge) ---
 
+
 @app.post("/mcp")
 async def mcp_endpoint(request: Request):
     """Legacy JSON-RPC endpoint: returns response directly (not via SSE)."""
@@ -176,44 +179,47 @@ async def mcp_endpoint(request: Request):
         method = body.get("method")
         params = body.get("params", {})
         req_id = body.get("id")
-        
+
         # Handle initialize in-process to avoid subprocess startup race
         if method == "initialize":
             from mempalace.version import __version__
+
             _SUPPORTED_VERSIONS = ["2025-03-26", "2024-11-05"]
             cv = params.get("protocolVersion", _SUPPORTED_VERSIONS[-1])
             neg = cv if cv in _SUPPORTED_VERSIONS else _SUPPORTED_VERSIONS[0]
-            return JSONResponse(content={
-                "jsonrpc": "2.0",
-                "id": req_id,
-                "result": {
-                    "protocolVersion": neg,
-                    "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "mempalace", "version": __version__},
-                },
-            })
-        
+            return JSONResponse(
+                content={
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {
+                        "protocolVersion": neg,
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": "mempalace", "version": __version__},
+                    },
+                }
+            )
+
         if method == "ping":
             return JSONResponse(content={"jsonrpc": "2.0", "id": req_id, "result": {}})
-        
+
         response = await call_mcp(method, params, request_id=req_id)
         return JSONResponse(content=response)
     except Exception as e:
         logger.error(f"Error handling MCP request: {e}")
         return JSONResponse(
             status_code=500,
-            content={"jsonrpc": "2.0", "error": {"code": -32000, "message": str(e)}}
+            content={"jsonrpc": "2.0", "error": {"code": -32000, "message": str(e)}},
         )
 
 
-
 # --- SSE Transport (MCP Standard) ---
+
 
 @app.get("/sse")
 async def sse_endpoint(request: Request):
     """SSE transport endpoint for MCP protocol."""
     from sse_starlette.sse import EventSourceResponse
-    
+
     async def event_generator():
         session_id = str(uuid.uuid4())
         queue: asyncio.Queue = asyncio.Queue()
@@ -232,7 +238,7 @@ async def sse_endpoint(request: Request):
         finally:
             async with _sse_lock:
                 _sse_streams.pop(session_id, None)
-    
+
     return EventSourceResponse(event_generator())
 
 
@@ -250,7 +256,7 @@ async def sse_post(request: Request):
         logger.error(f"SSE POST error: {e}")
         return JSONResponse(
             status_code=500,
-            content={"jsonrpc": "2.0", "error": {"code": -32000, "message": str(e)}}
+            content={"jsonrpc": "2.0", "error": {"code": -32000, "message": str(e)}},
         )
 
     """
@@ -268,20 +274,14 @@ async def sse_post(request: Request):
 
     async def event_generator():
         try:
-            yield {
-                "event": "endpoint",
-                "data": f"/messages/{session_id}"
-            }
+            yield {"event": "endpoint", "data": f"/messages/{session_id}"}
 
             while True:
                 if await request.is_disconnected():
                     break
                 try:
                     response = await asyncio.wait_for(queue.get(), timeout=30.0)
-                    yield {
-                        "event": "message",
-                        "data": json.dumps(response)
-                    }
+                    yield {"event": "message", "data": json.dumps(response)}
                 except asyncio.TimeoutError:
                     yield {"comment": "keepalive"}
         finally:
@@ -305,25 +305,23 @@ async def mcp_messages(session_id: str, request: Request):
         req_id = body.get("id")
         logger.info(f"SSE message: {method} id={req_id} (session={session_id[:8]}...)")
         await call_mcp(method, params, request_id=req_id)
-        return JSONResponse(
-            content={"jsonrpc": "2.0", "result": "accepted"},
-            status_code=202
-        )
+        return JSONResponse(content={"jsonrpc": "2.0", "result": "accepted"}, status_code=202)
     except Exception as e:
         logger.error(f"Error handling SSE message: {e}")
         return JSONResponse(
             status_code=500,
-            content={"jsonrpc": "2.0", "error": {"code": -32000, "message": str(e)}}
+            content={"jsonrpc": "2.0", "error": {"code": -32000, "message": str(e)}},
         )
 
 
 # --- Existing API routes ---
 
+
 @app.get("/health")
 async def health():
     return {
         "status": "healthy",
-        "mcp_running": mcp_process is not None and mcp_process.poll() is None
+        "mcp_running": mcp_process is not None and mcp_process.poll() is None,
     }
 
 
@@ -340,10 +338,11 @@ async def get_graph_data():
         name = col_info.name
         if not name.startswith("meilin_"):
             continue
-        wing_id = name[len("meilin_"):]
+        wing_id = name[len("meilin_") :]
         try:
             records, _ = client.scroll(
-                collection_name=name, limit=80,
+                collection_name=name,
+                limit=80,
                 with_payload=["entity_name", "topic", "content", "importance", "version"],
                 with_vector=False,
             )
@@ -354,15 +353,21 @@ async def get_graph_data():
                 en = pl.get("entity_name", "") or ""
                 tp = pl.get("topic", "general") or "general"
                 if en and en not in [e.get("name") for e in entities_list]:
-                    entities_list.append({"name": en, "type": tp.split("_")[-1] if "_" in tp else "doc", "topic": tp, "wing": wing_id})
+                    entities_list.append(
+                        {
+                            "name": en,
+                            "type": tp.split("_")[-1] if "_" in tp else "doc",
+                            "topic": tp,
+                            "wing": wing_id,
+                        }
+                    )
                 if tp not in topics_map:
                     topics_map[tp] = []
                 if en and en not in topics_map[tp]:
                     topics_map[tp].append(en)
-            result_wings.append({
-                "id": wing_id, "points": len(records),
-                "topics": list(topics_map.keys())
-            })
+            result_wings.append(
+                {"id": wing_id, "points": len(records), "topics": list(topics_map.keys())}
+            )
             result_entities.extend(entities_list)
         except Exception as e:
             logger.error(f"Error scrolling {name}: {e}")
@@ -378,26 +383,32 @@ async def get_entity(wing: str = Query(...), name: str = Query(...)):
     client = backend._lazy_client
     try:
         records, _ = client.scroll(
-            collection_name=collection_name, limit=10,
-            with_payload=True, with_vector=False,
+            collection_name=collection_name,
+            limit=10,
+            with_payload=True,
+            with_vector=False,
             scroll_filter=QdrantFilter(
                 must=[FieldCondition(key="entity_name", match=MatchValue(value=name))]
             ),
         )
     except Exception as e:
         logger.error(f"Qdrant scroll error for {collection_name}: {e}")
-        return JSONResponse(status_code=404, content={"error": f"Collection not found: {collection_name}"})
+        return JSONResponse(
+            status_code=404, content={"error": f"Collection not found: {collection_name}"}
+        )
     results = []
     for p in records:
         payload = p.payload or {}
-        results.append({
-            "id": str(p.id),
-            "score": getattr(p, "score", None),
-            "version": payload.get("version", 1),
-            "content": payload.get("content", ""),
-            "topic": payload.get("topic", ""),
-            "importance": payload.get("importance", "medium"),
-        })
+        results.append(
+            {
+                "id": str(p.id),
+                "score": getattr(p, "score", None),
+                "version": payload.get("version", 1),
+                "content": payload.get("content", ""),
+                "topic": payload.get("topic", ""),
+                "importance": payload.get("importance", "medium"),
+            }
+        )
     return {"entity": name, "wing": wing, "points": results, "count": len(results)}
 
 
@@ -427,4 +438,5 @@ async def serve_static(path: str):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=3002)

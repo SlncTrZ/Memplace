@@ -5,21 +5,25 @@ This script helps prevent committing API keys and secrets to the repository.
 ## Installation
 
 1. **Make executable:**
+
    ```bash
    chmod +x scripts/pre_commit_check.py
    ```
 
 2. **Install as git pre-commit hook:**
+
    ```bash
    ln -s ../../scripts/pre_commit_check.py .git/hooks/pre-commit
    ```
 
    Or on Windows (Git Bash):
+
    ```bash
    ln -s ../../scripts/pre_commit_check.py .git/hooks/pre-commit
    ```
 
 3. **Verify:**
+
    ```bash
    ls -la .git/hooks/pre-commit
    ```
@@ -35,16 +39,19 @@ This script helps prevent committing API keys and secrets to the repository.
 ## Pattern Examples
 
 **❌ Blocked (commit prevented):**
+
 ```python
 QDRANT_API_KEY = "real-secret-key-1234567890"
 ```
 
 **✅ Allowed (placeholder):**
+
 ```python
 QDRANT_API_KEY = "your_qdrant_api_key_here"
 ```
 
 **✅ Allowed (environment variable):**
+
 ```python
 QDRANT_API_KEY = os.environ.get("QDRANT_API_KEY")
 ```
@@ -67,9 +74,15 @@ git commit -m "test secret"  # ❌ Blocked
 python scripts/pre_commit_check.py
 ```
 
+> **Note:** The scripts/ directory has been cleaned up. Only `pre_commit_check.py`
+> and this README remain. Legacy Qdrant scripts (embed_all, embed_remaining,
+> check_qdrant, fix_threshold, test_embed, test_search) have been removed —
+> use `mempalace check-qdrant` for Qdrant connectivity checks instead.
+
 ## Disable Hook (Temporary)
 
 If needed, bypass with `--no-verify`:
+
 ```bash
 git commit --no-verify -m "message"
 ```

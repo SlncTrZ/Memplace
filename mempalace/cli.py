@@ -1014,6 +1014,23 @@ def cmd_palace_set_embedder(args):
         )
 
 
+def cmd_check_qdrant(args):
+    """Quick Qdrant connectivity check — calls get_backend("qdrant").health()."""
+    from .backends import get_backend
+
+    try:
+        qdrant = get_backend("qdrant")
+        status = qdrant.health()
+        if status.ok:
+            print(f"  Qdrant: OK — {status.detail}" if status.detail else "  Qdrant: OK")
+        else:
+            print(f"  Qdrant: UNHEALTHY — {status.detail}")
+            sys.exit(1)
+    except Exception as exc:
+        print(f"  Qdrant: ERROR — {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def cmd_repair_status(args):
     """Read-only Qdrant collection health check."""
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
@@ -1632,6 +1649,9 @@ def main():
         help="Read-only Qdrant collection health check",
     )
 
+    # check-qdrant — quick Qdrant connectivity check
+    sub.add_parser("check-qdrant", help="Quick Qdrant connectivity check")
+
     # daemon
     p_daemon = sub.add_parser("daemon", help="Manage the opt-in long-lived daemon")
     daemon_sub = p_daemon.add_subparsers(dest="daemon_action")
@@ -1747,6 +1767,7 @@ def main():
         "wake-up": cmd_wakeup,
         "repair": cmd_repair,
         "repair-status": cmd_repair_status,
+        "check-qdrant": cmd_check_qdrant,
         "status": cmd_status,
     }
     dispatch[args.command](args)
