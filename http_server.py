@@ -245,6 +245,48 @@ async def mcp_sse_fallback(request: Request):
 
 @app.get("/sse")
 async def sse_endpoint(request: Request):
+    """SSE transport endpoint for MCP protocol."""
+    from sse_starlette.sse import EventSourceResponse
+    
+    async def event_generator():
+        session_id = str(uuid.uuid4())
+        queue: asyncio.Queue = asyncio.Queue()
+        async with _sse_lock:
+            _sse_streams[session_id] = queue
+        try:
+            yield {"event": "endpoint", "data": "/sse"}
+            while True:
+                try:
+                    data = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield {"event": "message", "data": data}
+                except asyncio.TimeoutError:
+                    yield {"event": "keepalive", "data": ""}
+        except asyncio.CancelledError:
+            pass
+        finally:
+            async with _sse_lock:
+                _sse_streams.pop(session_id, None)
+    
+    return EventSourceResponse(event_generator())
+
+
+@app.post("/sse")
+async def sse_post(request: Request):
+    """POST to SSE endpoint — MCP SDK sends JSON-RPC here."""
+    try:
+        body = await request.json()
+        method = body.get("method")
+        params = body.get("params", {})
+        req_id = body.get("id")
+        response = await call_mcp(method, params, request_id=req_id)
+        return JSONResponse(content=response)
+    except Exception as e:
+        logger.error(f"SSE POST error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"jsonrpc": "2.0", "error": {"code": -32000, "message": str(e)}}
+        )
+
     """
     MCP SSE transport endpoint.
     Client opens GET /sse -> receives endpoint event -> POSTs JSON-RPC to that URL.
