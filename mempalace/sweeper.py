@@ -235,7 +235,7 @@ def sweep(jsonl_path: str, palace_path: str, source_label: Optional[str] = None)
         # this pre-query makes the metric honest (Copilot PR 998 review).
         try:
             existing = collection.get(ids=list(batch_ids), include=[])
-            # Chroma returns a dict; typed backends return GetResult — the
+            # The backend returns a dict; typed backends return GetResult — the
             # compat shim makes ``.get("ids")`` work on both.
             present = set(existing.get("ids") or [])
         except Exception as exc:

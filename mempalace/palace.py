@@ -438,7 +438,7 @@ def _open_collection_or_explain(
         # a closed backend means the caller violated the backend lifecycle,
         # not that the palace on disk is in a recoverable state.
         raise
-    except Exception as e:  # noqa: BLE001 — backend exceptions vary (chromadb, OSError, lock errors)
+    except Exception as e:  # noqa: BLE001 — backend exceptions vary (OSError, lock errors)
         emit(f"\n  Error opening palace at {palace_path}: {e!r}")
         emit("  Try: mempalace repair-status --palace <path>")
         return None
@@ -925,7 +925,7 @@ class MineValidationError(RuntimeError):
 def _validate_palace_fts5_after_mine(palace_path: str) -> None:
     """Raise MineValidationError if PRAGMA quick_check reports any error after a mine.
 
-    The ChromaDB backend has been removed; this check is now a no-op.
+    The Qdrant backend has been removed; this check is now a no-op.
     """
     return
 
@@ -933,7 +933,7 @@ def _validate_palace_fts5_after_mine(palace_path: str) -> None:
 # Per-thread record of palaces this thread already holds the lock for. Used by
 # `mine_palace_lock` to short-circuit re-entrant acquisition from the same
 # thread (e.g. miner.mine() acquires the outer lock then calls
-# ChromaCollection.upsert which now also tries to acquire). Without this guard
+# collection.upsert which now also tries to acquire). Without this guard
 # the inner call would block on its own outer flock (Linux fcntl locks are per
 # open file description, so a same-thread second open of the lock file is a
 # distinct lock and self-deadlocks).
@@ -1029,9 +1029,8 @@ def mine_palace_lock(palace_path: str):
     The per-file `mine_lock` only protects delete+insert interleave for a
     single source; it does not prevent N copies of `mempalace mine <dir>`
     from being spawned concurrently by hooks. When that happens, each copy
-    drives ChromaDB HNSW inserts in parallel against the same palace,
-    which (combined with chromadb's multi-threaded ParallelFor) can
-    corrupt the HNSW graph and produce sparse link_lists.bin blowups.
+    drives parallel inserts in parallel against the same palace,
+    which can corrupt the HNSW graph and produce sparse link_lists.bin blowups.
 
     The lock file is keyed by sha256(palace_path) so mines against
     *different* palaces can still run in parallel — we only serialize
@@ -1049,7 +1048,7 @@ def mine_palace_lock(palace_path: str):
 
     Re-entrant: if the current thread already holds the lock for the same
     palace, the context manager passes through without re-acquiring. This
-    lets ChromaCollection write methods (which acquire the lock themselves
+    lets collection write methods (which acquire the lock themselves
     to protect MCP/direct callers) compose with miner.mine() (which holds
     the outer lock for the entire mine pipeline) without self-deadlock.
     """
@@ -1177,9 +1176,9 @@ def file_already_mined(
         # mining pass — each with its own stored ``source_mtime`` and
         # ``normalize_version``. The function must return True if ANY stored
         # group is current (matching version + matching mtime when checked),
-        # because ChromaDB's ``get(..., limit=1)`` has undefined ordering
+        # because ``get(..., limit=1)`` has undefined ordering
         # across multiple matching rows: a ``limit=1`` shortcut picks
-        # whichever row ChromaDB orders first and only checks that one,
+        # whichever row the backend orders first and only checks that one,
         # causing spurious re-mines whenever the stale group is returned.
         # Iterating via the same paginated pattern used in the
         # extract_mode-is-set branch lets the function short-circuit on the
@@ -1226,10 +1225,10 @@ def bulk_check_mined(collection) -> dict[str, float]:
 
     Returns a dict mapping source_file -> source_mtime (as float) for every
     document that has both fields.  Callers can check membership and compare
-    mtimes locally instead of issuing one ChromaDB query per file.
+    mtimes locally instead of issuing one query per file.
 
     Fetches the full collection in paginated batches (like palace_graph.py)
-    since a WHERE-IN filter on thousands of paths is not supported by ChromaDB.
+    since a WHERE-IN filter on thousands of paths is not supported by the backend.
     """
     mined: dict[str, float] = {}
     try:
@@ -1254,7 +1253,7 @@ def prefetch_mined_set(collection, extract_mode: Optional[str] = None) -> set[st
     """Pre-fetch the set of source_files already mined at the current NORMALIZE_VERSION.
 
     Mirrors file_already_mined()'s version-gate semantics (check_mtime=False
-    branch) but in one bulk pass instead of one ChromaDB query per file.
+    branch) but in one bulk pass instead of one query per file.
     Returns a set of source_file paths whose stored drawers are at or above
     NORMALIZE_VERSION; callers do `if path in result_set: skip`.
 

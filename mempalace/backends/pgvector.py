@@ -1,7 +1,7 @@
 """Postgres + pgvector backend for MemPalace.
 
 pgvector is an opt-in external-service backend, the SQL counterpart to the
-Qdrant REST backend. Chroma remains the default; this adapter only runs when
+Qdrant REST backend. Qdrant is the default; this adapter only runs when
 the user explicitly selects ``pgvector`` via config, env, or CLI/MCP flag.
 Embeddings are still produced locally by MemPalace through the core embedding
 wrapper before vectors are written to Postgres.
@@ -90,7 +90,7 @@ def _strip_nul(value: Any) -> Any:
     bytes"), and a NUL in metadata serializes to a JSON unicode escape that the
     ``jsonb`` cast rejects ("unsupported Unicode escape sequence"). A single
     transcript that captured NUL in tool output would otherwise abort the whole
-    mine run (#1829). ChromaDB and the SQLite backend store the byte verbatim,
+    mine run (#1829). The Qdrant and SQLite backends store the byte verbatim,
     so stripping only here keeps the same inputs ingestible.
 
     Applied to id, document, and metadata in :meth:`_PgVectorClient.upsert_rows`
@@ -1379,7 +1379,7 @@ class PgVectorBackend(BaseBackend):
     # presence signals "palace initialized" (reads raise CollectionNotInitialized
     # when the marker exists but the remote table doesn't), so recording identity
     # at first empty open must not create it. The sidecar is unguarded — like the
-    # chroma sidecar — so a brand-new palace can record identity immediately.
+    # sidecar — so a brand-new palace can record identity immediately.
     @staticmethod
     def _embedder_sidecar_path(palace: PalaceRef) -> Optional[str]:
         if not palace.local_path:

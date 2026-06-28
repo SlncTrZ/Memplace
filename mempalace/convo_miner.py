@@ -110,7 +110,7 @@ def _register_file(collection, source_file: str, wing: str, agent: str, extract_
 
     Without this, files that normalize to nothing or produce zero chunks are
     re-read and re-processed on every mine run because nothing was written to
-    ChromaDB on the first pass.
+    the backend on the first pass.
     """
     sentinel_id = make_convo_sentinel_id(source_file, extract_mode)
     collection.upsert(
@@ -437,7 +437,7 @@ def _file_chunks_locked(collection, source_file, chunks, wing, room, agent, extr
             logger.debug("Stale-drawer purge failed for %s", source_file, exc_info=True)
 
         # Batch chunks into bounded upserts so large transcripts keep most of
-        # the embedding speedup without one huge Chroma/SQLite request. Keep
+        # the embedding speedup without one huge request. Keep
         # one filed_at per source file so all transcript drawers share an
         # ingest timestamp.
         filed_at = datetime.now().isoformat()

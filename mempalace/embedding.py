@@ -1,13 +1,13 @@
 """Embedding function factory with hardware acceleration.
 
-Returns a ChromaDB-compatible embedding function bound to a user-selected
+Returns an embedding function bound to a user-selected
 ONNX Runtime execution provider.
 
 Two embedding models are available, selected via ``MEMPALACE_EMBEDDING_MODEL``
 or ``embedding_model`` in ``~/.mempalace/config.json``:
 
 * ``minilm`` (default) — ``all-MiniLM-L6-v2``, 384-dim, English-only training.
-  ChromaDB's default; what every existing palace was built with.
+  The default; what every existing palace was built with.
 * ``embeddinggemma`` — ``onnx-community/embeddinggemma-300m-ONNX`` (q8), 384-dim
   via Matryoshka truncation, multilingual (100+ languages). Cross-lingual cos
   ~0.88 on parallel translations vs MiniLM's ~0.35. Recommended for any
@@ -117,7 +117,7 @@ def _intra_op_session_options(intra_op_num_threads: int):
     """Build ORT ``SessionOptions`` capping the intra-op thread pool (#1068).
 
     Returns ``None`` when ``intra_op_num_threads <= 0`` so the caller leaves
-    ORT at its default (≈ physical core count). ChromaDB's embedder ignores
+    ORT at its default (≈ physical core count). The embedder ignores
     ``OMP_NUM_THREADS`` — ORT owns its own intra-op pool, settable only via
     ``SessionOptions`` at session construction — so a cap has to be threaded
     through here rather than via the environment.
@@ -145,7 +145,7 @@ def _resolve_intra_op_threads() -> int:
 def _build_ef_class():
     """Subclass ``ONNXMiniLM_L6_V2`` with name ``"default"``.
 
-    Why the rename: ChromaDB 1.5 persists the EF identity on the collection
+    Why the rename: the backend persists the EF identity on the collection
     and rejects reads that pass a differently-named EF (``onnx_mini_lm_l6_v2``
     vs ``default``). The vectors and model are identical — only the
     ``name()`` tag differs — so spoofing the name lets one EF class serve
@@ -201,7 +201,7 @@ def _build_ef_class():
 
 
 # Embeddinggemma-300m ONNX (q8) — 100+ languages, MRL-truncated to 384 dims so
-# it drops into existing ChromaDB collections without a schema change. Lazy:
+# it drops into existing collections without a schema change. Lazy:
 # the model (~300 MB) downloads on first call and is cached by huggingface_hub.
 _EMBEDDINGGEMMA_REPO = "onnx-community/embeddinggemma-300m-ONNX"
 _EMBEDDINGGEMMA_ONNX = "model_quantized.onnx"
@@ -213,7 +213,7 @@ _EMBEDDINGGEMMA_MAX_LEN = 2048
 # cli.py) allocates attention buffers that grow with batch size and
 # superlinearly with padded length (score tensors are batch x heads x
 # len^2 per layer), and the kernel OOM-kills the process (#1770). 32
-# matches the internal batch size of chromadb's ONNXMiniLM_L6_V2, whose
+# matches the internal batch size of ONNXMiniLM_L6_V2, whose
 # chunked _forward survives the same call sites. embeddinggemma's
 # sentence_embedding output is attention-masked, so sub-batch padding
 # does not change any row's vector.
@@ -221,22 +221,22 @@ _EMBEDDINGGEMMA_BATCH_SIZE = 32
 
 
 class EmbeddinggemmaONNX:
-    """ChromaDB-compatible EF using embeddinggemma-300m ONNX (q8, MRL→384d).
+    """Embedding function using embeddinggemma-300m ONNX (q8, MRL→384d).
 
     Cross-lingual cosine similarity on parallel-translated text averages 0.88
     across DE/FR/HI/IT/KO/RU vs 0.35 for ``all-MiniLM-L6-v2``. Output dim is
     truncated to 384 via Matryoshka Representation Learning so the model is a
-    drop-in replacement for the MiniLM-shaped 384-dim collections ChromaDB
-    creates by default — same vector width, no schema change.
+    drop-in replacement for the MiniLM-shaped 384-dim collections created by
+    default — same vector width, no schema change.
 
     Switching an existing palace from minilm → embeddinggemma still requires
     re-embedding (different vector space) — collections persist the EF name
-    and ChromaDB rejects mismatched reads. Run ``mempalace repair rebuild-index``.
+    and the backend rejects mismatched reads. Run ``mempalace repair rebuild-index``.
     """
 
     @staticmethod
     def name() -> str:
-        # ChromaDB persists this on the collection and refuses reads with a
+        # The backend persists this on the collection and refuses reads with a
         # mismatched EF — that's the signal that forces users to rebuild_index
         # when switching models. Keep it stable.
         return "embeddinggemma_300m"
@@ -318,7 +318,7 @@ class EmbeddinggemmaONNX:
             # must already be in place when it becomes visible.
             self._session = session
 
-    def __call__(self, input: str | list[str] | None) -> list[list[float]]:  # noqa: A002 — ChromaDB EF protocol
+    def __call__(self, input: str | list[str] | None) -> list[list[float]]:  # noqa: A002 — embedding function protocol
         if isinstance(input, str):
             # A bare string would be iterated character by character below,
             # silently producing one garbage vector per character.
@@ -346,17 +346,17 @@ class EmbeddinggemmaONNX:
             )
             sent_emb = outputs[self._output_idx][:, :_EMBEDDINGGEMMA_DIM]
             # L2-normalize so cosine similarity == dot product (matches what the
-            # MTEB methodology assumes; ChromaDB's distance is configured for it).
+            # MTEB methodology assumes; the distance is configured for it).
             norms = np.linalg.norm(sent_emb, axis=1, keepdims=True) + 1e-12
             embeddings.extend((sent_emb / norms).tolist())
         return embeddings
 
-    def embed_query(self, input: list[str]) -> list[list[float]]:  # noqa: A002 — ChromaDB EF protocol
-        """Embed query documents (ChromaDB EF protocol)."""
+    def embed_query(self, input: list[str]) -> list[list[float]]:  # noqa: A002 — embedding function protocol
+        """Embed query documents."""
         return self(input)
 
     def embed_documents(self, input: list[str]) -> list[list[float]]:  # noqa: A002
-        """Embed a batch of documents (ChromaDB EF protocol)."""
+        """Embed a batch of documents."""
         return self(input)
 
 
@@ -429,7 +429,7 @@ def current_model_name(model: Optional[str] = None) -> str:
 
     This is the configured ``embedding_model`` (``"minilm"`` /
     ``"embeddinggemma"`` / ...), not the embedding function's internal
-    ``name()`` (which is spoofed to ``"default"`` for ChromaDB compatibility).
+    ``name()`` (which is spoofed to ``"default"`` for backend compatibility).
     """
     if model is not None:
         return str(model).strip().lower()

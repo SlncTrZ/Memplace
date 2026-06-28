@@ -5,7 +5,7 @@ This module defines the surface every storage backend must implement:
 * ``BaseCollection`` — the per-collection read/write interface, kwargs-only.
 * ``BaseBackend`` — the per-palace factory, addressed by ``PalaceRef``.
 * ``QueryResult`` / ``GetResult`` — typed result dataclasses that replace the
-  Chroma dict shape as the canonical return type.
+  standard dict shape as the canonical return type.
 * Error classes + ``HealthStatus`` — uniform across backends.
 
 This is the v1 cleanup from RFC 001 §10: full typed results, ``PalaceRef``,
@@ -433,7 +433,7 @@ class BaseCollection(ABC):
 
         Defaults to the owning backend's declared metric (cosine for all
         in-tree backends). Collections that can vary per-collection — e.g. a
-        legacy Chroma palace built without ``hnsw:space=cosine`` — override
+        legacy palace built without ``hnsw:space=cosine`` — override
         this to report their actual space so core ranking converts correctly.
         """
         return "cosine"
@@ -473,7 +473,7 @@ class BaseCollection(ABC):
 
         Default implementation pages through :meth:`get` using
         ``limit``/``offset`` -- correct for backends with a real server-side
-        cursor (e.g. Chroma's SQL OFFSET), and the same shape callers already
+        cursor (e.g. SQL OFFSET), and the same shape callers already
         relied on before this method existed.
 
         Backends whose ``get(limit=, offset=)`` is implemented by fully
@@ -649,7 +649,7 @@ class BaseBackend(ABC):
 # ---------------------------------------------------------------------------
 
 
-# Keys the Chroma ``include=`` parameter accepts.
+# Keys the ``include=`` parameter accepts.
 _VALID_INCLUDE_KEYS = frozenset({"documents", "metadatas", "distances", "embeddings"})
 
 

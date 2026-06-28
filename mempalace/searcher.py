@@ -164,7 +164,7 @@ def _metric_for_collection(col) -> str:
 
     Reads the ``distance_metric`` exposed by the backend collection (the
     RFC 001 backend metric declaration). ``EmbeddingCollection`` delegates the
-    attribute to its inner collection; legacy Chroma palaces report their
+    attribute to its inner collection; legacy palaces report their
     actual ``hnsw:space``.
     Any failure falls back to ``"cosine"`` — the value all in-tree backends
     use and the only metric MemPalace created palaces with historically.
@@ -667,7 +667,7 @@ def _vector_disabled_search(
     """Text-filter-only search using backend-native text matching.
 
     Used when vector search is unavailable (e.g., HNSW divergence detection
-    in Chroma). Tries the backend's ``lexical_search`` capability first;
+    in the backend). Tries the backend's ``lexical_search`` capability first;
     falls back to ``get`` with filtering and BM25 re-ranking.
     """
     if collection_name is None:

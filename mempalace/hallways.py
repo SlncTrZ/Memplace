@@ -216,7 +216,7 @@ def compute_hallways_for_wing(
 
     Args:
         wing: wing name to scan.
-        col: ChromaDB collection — must support ``.count()`` and paginated
+        col: collection — must support ``.count()`` and paginated
             ``.get(limit=..., offset=..., include=...)``. The fetch is filtered
             to ``wing`` client-side rather than via ``.get(where={"wing": ...})``,
             which binds one SQL variable per matched id and overflows SQLite's

@@ -8,7 +8,7 @@ are too similar (cosine distance < threshold), keeps the longest/richest
 version, and deletes the rest.
 
 Uses the configured storage backend's similarity search. With the default
-local backends (Chroma, sqlite_exact) this stays on-machine with no external
+local backends (Qdrant, sqlite_exact) this stays on-machine with no external
 calls; with a remote backend (e.g. Qdrant) it issues queries to that backend.
 
 Usage (standalone):

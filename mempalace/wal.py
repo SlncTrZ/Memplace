@@ -39,7 +39,7 @@ def _ensure_wal() -> None:
     it on the first real write keeps the kill-switch contract intact.
 
     It is deliberately not gated on ``_palace_root_exists()``: by the time a
-    write reaches here the palace is already being recreated by the ChromaDB/KG
+    write reaches here the palace is already being recreated by the vector store/KG
     layer regardless, so gating would only drop audit records, not prevent
     recreation. Runtime kill-switch enforcement for MCP writes is the broader
     question tracked in #504.

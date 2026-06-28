@@ -639,7 +639,7 @@ def chunk_text(
 
 
 # =============================================================================
-# PALACE — ChromaDB operations
+# PALACE — vector store operations
 # =============================================================================
 
 
@@ -922,7 +922,7 @@ def _extract_entities_for_metadata(content: str) -> str:
     chars. Filters out the closet stoplist (``When``, ``After``, ``The``, …)
     so sentence-starters don't masquerade as proper nouns.
 
-    Returns semicolon-separated string suitable for ChromaDB metadata
+    Returns semicolon-separated string suitable for metadata
     filtering. The list is truncated to ``_ENTITY_METADATA_LIMIT`` entries
     *before* joining so a name is never cut in half.
     """
@@ -1421,7 +1421,7 @@ def process_file(
         # Purge stale drawers for this file before re-inserting the fresh chunks.
         # Converts modified-file re-mines from upsert-over-existing-IDs (which hits
         # hnswlib's thread-unsafe updatePoint path and can segfault on macOS ARM
-        # with chromadb 0.6.3) into a clean delete+insert, bypassing the update
+        # with the legacy backend) into a clean delete+insert, bypassing the update
         # path entirely.
         try:
             collection.delete(where={"source_file": source_file})
@@ -1429,8 +1429,8 @@ def process_file(
             logger.debug("Stale-drawer purge failed for %s", source_file, exc_info=True)
 
         # Batch chunks into bounded upserts so the embedding model sees many
-        # chunks per forward pass without building one huge Chroma/SQLite
-        # request for pathological files. A bad chunk can fail its sub-batch;
+        # chunks per forward pass without building one huge request
+        # for pathological files. A bad chunk can fail its sub-batch;
         # that is the deliberate trade-off for amortizing embedding overhead.
         try:
             source_mtime = os.path.getmtime(source_file)
@@ -1874,7 +1874,7 @@ def _mine_impl(
         # double-banner would mislead the operator.
         raise
     except Exception as exc:
-        # Without this, an arbitrary exception (ONNX bad_alloc, chromadb HNSW
+        # Without this, an arbitrary exception (ONNX bad_alloc, HNSW
         # error, OS fault) propagates and the process exits with no completion
         # banner — the operator sees only the final progress line and assumes
         # the mine succeeded (#1296). Print the partial-progress summary the
@@ -1987,14 +1987,12 @@ def _compute_entity_tunnels_for_wing(wing: str) -> int:
 def status(palace_path: str):
     """Show what's been filed in the palace.
 
-    Tallies drawers by wing/room directly from ``chroma.sqlite3`` so a routine
-    status check never cold-loads the HNSW vector index — a load that costs
-    tens of seconds of CPU per call on large palaces (#1681). Falls back to the
-    ChromaDB client path when the sqlite read is unavailable (missing DB,
+    Tallies drawers by wing/room from the backend in a routine
+    status check. Falls back when the query is unavailable (missing DB,
     un-bootstrapped collection, or an unexpected schema); the fallback also
     emits the state-specific guidance for absent/empty palaces.
     """
-    # ChromaDB backend removed — wing/room counts unavailable via sqlite
+    # counts via sqlite unavailable
     counts = None
     if counts is not None:
         total, wing_rooms = counts

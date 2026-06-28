@@ -65,7 +65,7 @@ def _get_system_words() -> set:
 # Matches any token with a digit anywhere in it: 3am, bge-large-v1.5, top-10
 _HAS_DIGIT = re.compile(r"\d")
 
-# CamelCase: ChromaDB, MemPalace, LongMemEval
+# CamelCase: MemPalace, LongMemEval
 _IS_CAMEL = re.compile(r"[A-Z][a-z]+[A-Z]")
 
 # ALL_CAPS or all-caps with underscores: NDCG, R@5, MAX_RESULTS

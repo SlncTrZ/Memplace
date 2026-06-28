@@ -5,7 +5,7 @@ decay (strength fades with time since last activation), with the Cepeda
 spacing effect: stability grows when reinforcement is spaced rather than
 massed.
 
-This module is pure. No I/O, no DB, no chromadb. It operates on plain
+This module is pure. No I/O, no DB. It operates on plain
 dicts (hall records, tunnel records) and mutates them in place. Callers
 in ``hallways.py`` and ``palace_graph.py`` invoke these functions; the
 math lives here in one place so both connection kinds share identical

@@ -3,7 +3,7 @@
 Drawer IDs and content-addressed identifiers built by concatenating strings
 without a delimiter before hashing form a defect class that allows
 ``hash(s1 + str(i1)) == hash(s2 + str(i2))`` whenever
-``s1 + str(i1) == s2 + str(i2)``. Under ChromaDB's primary-key constraint
+``s1 + str(i1) == s2 + str(i2)``. Under the backend's primary-key constraint
 the second upsert silently overwrites the first, losing content with no
 error raised. The styleguide's partial-scope-key-migration rule names this
 shape — every concat-into-hash site is a candidate that must be triaged.

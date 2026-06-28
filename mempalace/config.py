@@ -14,7 +14,7 @@ from pathlib import Path
 # ── Input validation ──────────────────────────────────────────────────────────
 # Shared sanitizers for wing/room/entity names. Prevents path traversal,
 # excessively long strings, and special characters that could cause issues
-# in file paths, SQLite, or ChromaDB metadata.
+# in file paths, SQLite, or backend metadata.
 
 MAX_NAME_LENGTH = 128
 _SAFE_NAME_RE = re.compile(r"^(?:[^\W_]|[^\W_][\w .'-]{0,126}[^\W_])$")
@@ -22,7 +22,7 @@ _SAFE_NAME_RE = re.compile(r"^(?:[^\W_]|[^\W_][\w .'-]{0,126}[^\W_])$")
 # MCP clients (e.g. Claude Desktop, WorkBuddy) occasionally relay lone UTF-16
 # surrogates (U+D800–U+DFFF) when proxying binary-in-Unicode or corrupted
 # clipboard input. Python's ``str.encode('utf-8')`` raises on these, which
-# crashes ChromaDB add/upsert with -32000. See issue #1235.
+# crashes backend add/upsert with -32000. See issue #1235.
 _LONE_SURROGATE_RE = re.compile(r"[\ud800-\udfff]")
 
 
@@ -353,7 +353,7 @@ class MempalaceConfig:
 
         Mirrors ``tunnel_file`` so within-wing hallway state is scoped to the
         configured palace and survives palace rebuilds (it does not live in
-        ChromaDB which can be recreated). Prior to this property the path was
+        the backend which can be recreated). Prior to this property the path was
         hardcoded under ``~/.mempalace/hallways.json`` and multiple palaces on
         one host silently shared one file (see ``hallways._legacy_hallway_file``).
         """
@@ -361,7 +361,7 @@ class MempalaceConfig:
 
     @property
     def collection_name(self):
-        """ChromaDB collection name."""
+        """Palace collection name."""
         return self._file_config.get("collection_name", DEFAULT_COLLECTION_NAME)
 
     @property
@@ -369,7 +369,7 @@ class MempalaceConfig:
         """Storage backend name.
 
         Read from ``config.json`` first, then ``MEMPALACE_BACKEND``, then
-        ``"chroma"`` for backwards compatibility with existing palaces.
+        ``"qdrant"`` for backwards compatibility with existing palaces.
         """
         cfg_val = self._file_config.get("backend")
         if cfg_val:
@@ -643,7 +643,7 @@ class MempalaceConfig:
     def embedding_model(self):
         """Embedding model identifier.
 
-        Values: ``"minilm"`` (ChromaDB's all-MiniLM-L6-v2 — English-only),
+        Values: ``"minilm"`` (all-MiniLM-L6-v2 - English-only),
         ``"embeddinggemma"`` (multilingual, 100+ languages, default for
         new installs since onboarding writes the choice). Read from env
         ``MEMPALACE_EMBEDDING_MODEL`` first, then ``embedding_model`` in
@@ -651,7 +651,7 @@ class MempalaceConfig:
         palaces created before onboarding asked the question.
 
         Switching models on an existing palace requires re-embedding
-        (different vector space) — ChromaDB rejects reads when the persisted
+        (different vector space) — the backend rejects reads when the persisted
         EF name doesn't match. Run ``mempalace repair rebuild-index`` after
         changing this value.
         """
@@ -664,7 +664,7 @@ class MempalaceConfig:
     def embedding_threads(self) -> int:
         """Cap on the embedder's ONNX Runtime intra-op thread pool (#1068).
 
-        ChromaDB's ONNX embedder builds its ``InferenceSession`` with no thread
+        The embedder builds its ``InferenceSession`` with no thread
         cap, so the intra-op pool defaults to the physical core count and a
         background ``mine`` pins every core — stacked Stop-hook fires turn into
         thermal events. ``OMP_NUM_THREADS`` is inert here (ORT owns its own
@@ -762,7 +762,7 @@ class MempalaceConfig:
         Applies to the accumulating, timestamped backups created by
         ``mempalace migrate`` (``<palace>.pre-migrate.<timestamp>``) and
         ``mempalace repair max-seq-id``
-        (``chroma.sqlite3.max-seq-id-backup-<timestamp>``). Each of those
+        (``.max-seq-id-backup-<timestamp>``). Each of those
         commands writes a fresh full-size copy every run and historically
         never deleted the old ones, so on a machine that mines or repairs on
         a schedule the backup set could silently grow until it filled the

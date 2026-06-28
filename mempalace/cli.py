@@ -55,7 +55,7 @@ _EXPLICIT_BACKEND_ENV = "MEMPALACE_BACKEND_EXPLICIT"
 
 # Keep parser construction lightweight for --version and hook commands.
 # This mirrors miner.MAX_CHUNKS_PER_FILE without importing miner here;
-# importing miner pulls in Chroma dependencies before argparse can handle
+# importing miner pulls in heavy dependencies before argparse can handle
 # lightweight exits such as --version.
 _CLI_MAX_CHUNKS_PER_FILE_DEFAULT = 50_000
 
@@ -613,7 +613,7 @@ def cmd_mine(args):
         print(f"mempalace: {exc}", file=sys.stderr)
         sys.exit(1)
     except MineValidationError as exc:
-        # PRAGMA quick_check on chroma.sqlite3 returned errors at end of mine.
+        # PRAGMA quick_check returned errors at end of mine.
         # The corruption may pre-date the mine; we surface it here so automation
         # cannot proceed against a half-broken palace. Reuse cmd_repair's
         # recovery banner so the operator sees one consistent message regardless
@@ -1207,7 +1207,7 @@ def cmd_compress(args):
     if not args.dry_run:
         try:
             # Route through palace.get_closets_collection so the shared
-            # _DEFAULT_BACKEND is reused (avoids a redundant ChromaBackend
+            # _DEFAULT_BACKEND is reused (avoids a redundant backend
             # instance and its potential WAL-lock contention on Windows).
             comp_col = get_closets_collection(palace_path, create=True)
             for doc_id, compressed, meta, stats in compressed_entries:

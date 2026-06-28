@@ -110,7 +110,7 @@ class DrawerRecord:
     """One drawer's worth of extracted content plus flat metadata.
 
     ``metadata`` values MUST be flat scalars (``str``/``int``/``float``/``bool``)
-    per RFC 001 §1.4 — the chroma constraint. Nested data belongs on the
+    per RFC 001 §1.4 — the metadata constraint. Nested data belongs on the
     knowledge graph (§5.5) or in a declared ``json_string`` field (§5.4).
     """
 

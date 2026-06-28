@@ -26,7 +26,7 @@ import sys
 # --- MCP stdio protection (issue #225) -----------------------------------
 # The MCP protocol multiplexes JSON-RPC over stdio: stdout MUST carry only
 # valid JSON-RPC messages, stderr is for human-readable logs. Some
-# transitive dependencies (chromadb → onnxruntime, posthog telemetry) print
+# transitive dependencies print
 # banners and error messages directly to stdout — sometimes at C level —
 # which breaks Claude Desktop's JSON parser. Redirect stdout → stderr at
 # both the Python and file-descriptor level before heavy imports, then
@@ -469,7 +469,7 @@ def _tool_status_via_sqlite() -> dict:
 
 
 def tool_status():
-    # Run the safe sqlite/pickle probe before we touch chromadb. In the
+    # Run the safe sqlite/pickle probe before we touch the backend. In the
     # #1222 failure mode, opening the persistent client to call .count()
     # can segfault — short-circuit to a pure-sqlite path when divergence
     # is detected so status stays reachable.
@@ -480,7 +480,7 @@ def tool_status():
         return _tool_status_via_sqlite()
 
     # Use create=True only when a palace DB already exists on disk -- this
-    # bootstraps the ChromaDB collection on a valid-but-empty palace without
+    # bootstraps the collection on a valid-but-empty palace without
     # accidentally creating a palace in a non-existent directory (#830).
     col = _get_collection(create=db_exists)
     if not col:
@@ -534,7 +534,7 @@ FORMAT:
   IMPORTANCE: ★ to ★★★★★ (1-5 scale).
   HALLS: hall_facts, hall_events, hall_discoveries, hall_preferences, hall_advice.
   WINGS: wing_user, wing_agent, wing_team, wing_code, wing_myproject, wing_hardware, wing_ue5, wing_ai_research.
-  ROOMS: Hyphenated slugs representing named ideas (e.g., chromadb-setup, gpu-pricing).
+  ROOMS: Hyphenated slugs representing named ideas (e.g., gpu-pricing).
 
 EXAMPLE:
   FAM: ALC→♡JOR | 2D(kids): RIL(18,sports) MAX(11,chess+swimming) | BEN(contributor)
@@ -723,7 +723,7 @@ def tool_check_duplicate(content: str, threshold: float = 0.9):
                 dist = results["distances"][0][i]
                 similarity = round(max(0.0, 1 - dist), 3)
                 if similarity >= threshold:
-                    # Chroma 1.5.x can return None for partially-flushed rows;
+                    # The backend can return None for partially-flushed rows;
                     # coerce to empty sentinels so downstream .get() is safe.
                     meta = results["metadatas"][0][i] or {}
                     doc = results["documents"][0][i] or ""
@@ -1650,13 +1650,13 @@ TOOLS = {
         "handler": tool_kg_stats,
     },
     "mempalace_traverse": {
-        "description": "Walk the palace graph from a room. Shows connected ideas across wings — the tunnels. Like following a thread through the palace: start at 'chromadb-setup' in wing_code, discover it connects to wing_myproject (planning) and wing_user (feelings about it).",
+        "description": "Walk the palace graph from a room. Shows connected ideas across wings — the tunnels. Like following a thread through the palace: start at a room in wing_code, discover it connects to wing_myproject (planning) and wing_user (feelings about it).",
         "input_schema": {
             "type": "object",
             "properties": {
                 "start_room": {
                     "type": "string",
-                    "description": "Room to start from (e.g. 'chromadb-setup', 'riley-school')",
+                    "description": "Room to start from (e.g. 'gpu-pricing', 'riley-school')",
                 },
                 "max_hops": {
                     "type": "integer",
@@ -2062,7 +2062,7 @@ def handle_request(request):
             tool_args = {k: v for k, v in tool_args.items() if k in schema_props}
         # Coerce argument types based on input_schema.
         # MCP JSON transport may deliver integers as floats or strings;
-        # ChromaDB and Python slicing require native int.
+        # The backend and Python slicing require native int.
         for key, value in list(tool_args.items()):
             prop_schema = schema_props.get(key, {})
             declared_type = prop_schema.get("type")
@@ -2135,7 +2135,7 @@ def main():
     logger.info("MemPalace MCP Server starting...")
     # Pre-flight: probe HNSW capacity before any tool call so the warning
     # is visible at startup rather than on first use (#1222). Pure
-    # filesystem read; never opens a chromadb client.
+    # filesystem read; never opens a backend client.
     _refresh_vector_disabled_flag()
     while True:
         try:

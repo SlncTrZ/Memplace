@@ -65,7 +65,7 @@ def _mempalace_python() -> str:
     """Return the python interpreter that has mempalace installed.
 
     When hooks are invoked by Claude Code, sys.executable may be the system
-    python which lacks chromadb and other deps.  Resolution order:
+    python which lacks mempalace and other deps.  Resolution order:
     1. MEMPALACE_PYTHON env var (explicit override)
     2. Venv python from package install path
     3. Editable install: venv/ sibling to mempalace/
@@ -289,7 +289,7 @@ _MINE_PID_FILE_ENV = "MEMPALACE_MINE_PID_FILE"
 
 # Maximum wall-clock hours a mine subprocess is allowed to run before its
 # PID slot is treated as stale (even if the process is still alive).  A
-# wedged mine — e.g. one that is blocking indefinitely on ChromaDB
+# wedged mine — e.g. one that is blocking indefinitely on backend
 # cold-init under concurrent Windows load (#1552) — would otherwise hold
 # its slot forever.  Set MEMPALACE_MINE_TIMEOUT_HOURS=0 to disable the
 # timeout (slots are reclaimed only when the PID is dead).
@@ -1296,7 +1296,7 @@ def hook_session_end(data: dict, harness: str):
             else:
                 valid_transcript = str(validated)
 
-        # Flush. The diary checkpoint (in-process ChromaDB write) runs FIRST,
+        # Flush. The diary checkpoint runs FIRST,
         # before any detached mine is spawned, so it never contends for the
         # palace lock; this handler is already backgrounded by the wrapper, so it
         # is not under the SessionEnd budget and has time to finish. The detached

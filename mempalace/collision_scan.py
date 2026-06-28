@@ -1,6 +1,6 @@
 """Pre-mining defense against drawer_id collisions.
 
-Runs immediately before a batched chromadb upsert. Computes the union of
+Runs immediately before a batched upsert. Computes the union of
 incoming drawer_ids and existing drawer_ids that share a key with the
 batch; raises ``CollisionError`` if any drawer_id appears more than once
 in that union with conflicting ``(source_file, chunk_index)`` metadata.
@@ -10,7 +10,7 @@ are vanishingly rare — SHA-256 truncated to 24 hex chars makes random
 collision ~2^-96. The scan exists for two reasons:
 
 1. Catch upstream bugs that emit duplicate ``(source_file, chunk_index)``
-   pairs in the same batch with conflicting content. ChromaDB would
+   pairs in the same batch with conflicting content. The backend would
    silently let the last-write win; the scan surfaces it as an
    actionable error naming both call sites.
 2. Catch the astronomical-but-possible SHA-256 hash collision with a
@@ -62,7 +62,7 @@ def assert_no_collisions(
             chunks about to be upserted. ``metadata`` must carry at
             least ``source_file``; ``chunk_index`` is used when
             present.
-        collection: a ChromaDB-shaped collection with ``get(ids=...)``
+        collection: a collection-shape with ``get(ids=...)``
             returning a dict with ``ids`` and ``metadatas`` keys.
 
     Raises:
@@ -80,7 +80,7 @@ def assert_no_collisions(
     for drawer_id, meta in proposed:
         incoming[drawer_id].add(_metadata_key(meta))
 
-    # Query existing rows for any incoming id. ChromaDB's get(ids=...)
+    # Query existing rows for any incoming id. The get(ids=...)
     # returns only the rows whose ids are present; missing ids are
     # silently absent from the result, which is what we want.
     incoming_ids = list(incoming.keys())
@@ -114,7 +114,7 @@ def _format_collisions(collisions: dict[str, set[tuple]]) -> str:
             else:
                 lines.append(f"    source_file={key[0]!r}, chunk_index={key[1]!r}")
     lines.append(
-        "Each colliding drawer_id would cause the second ChromaDB upsert "
+        "Each colliding drawer_id would cause the second upsert "
         "to silently overwrite the first. Fix the upstream chunker / "
         "miner to emit distinct keys, or investigate the SHA-256 hash "
         "collision."

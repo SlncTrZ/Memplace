@@ -1,7 +1,7 @@
 """
 repair.py — Palace health check and snapshot-based recovery (Qdrant edition)
 
-When ChromaDB was removed (RFC 001), the old repair module that managed
+When the legacy backend was removed (RFC 001), the old repair module that managed
 HNSW index rebuilds became vestigial. Qdrant handles its own HNSW index
 internally — no manual rebuild needed.
 
@@ -104,7 +104,7 @@ def print_sqlite_integrity_abort(palace_path: str, errors: list[str]) -> None:
     """Print a clear abort banner for Knowledge Graph SQLite corruption.
 
     (Preserved for the cli.py ``cmd_mine`` exception handler; now points
-    at ``knowledge_graph.sqlite3`` rather than ``chroma.sqlite3``.)
+    at ``knowledge_graph.sqlite3``.)
     """
     db_path = _kg_path(palace_path)
     preview = errors[:5]
@@ -347,18 +347,18 @@ def repair_max_seq_id(
     dry_run: bool = False,
     assume_yes: bool = False,
 ) -> dict:
-    """No-op: max_seq_id is a Chroma-only concept.
-
+    """No-op: max_seq_id is a backend-only concept.
+    
     Preserved so cli.py's ``cmd_repair --mode max-seq-id`` doesn't
     break.
     """
     print("\n  max_seq_id repair is not needed with the Qdrant backend.")
-    print("  (Chroma-only concept; Qdrant manages its own sequence IDs.)\n")
+    print("  (Backend-only concept; Qdrant manages its own sequence IDs.)\n")
     return {
         "palace_path": palace_path,
         "dry_run": dry_run,
         "aborted": True,
-        "reason": "chroma-only-concept",
+        "reason": "legacy-only-concept",
         "segment_repaired": [],
         "before": {},
         "after": {},
@@ -397,8 +397,8 @@ def rebuild_from_sqlite(
     archive_existing_dest: bool = False,
     batch_size: int = 1000,
 ) -> dict[str, int]:
-    """No-op: Qdrant does not store data in chroma.sqlite3.
-
+    """No-op: Qdrant does not store data in a SQLite file.
+    
     Preserved so cli.py's ``cmd_repair --mode from-sqlite`` path
     doesn't break. Qdrant collections are backed up via the snapshot
     API instead.
@@ -406,7 +406,7 @@ def rebuild_from_sqlite(
     print(f"\n{'=' * 55}")
     print("  MemPalace Repair — Rebuild from SQLite (no-op)")
     print(f"{'=' * 55}\n")
-    print("  The Qdrant backend does not use chroma.sqlite3; drawers are")
+    print("  The Qdrant backend does not use SQLite; drawers are")
     print("  stored in Qdrant's own collection. This operation is not needed.")
     print()
     print("  To back up your Qdrant collection, use the snapshot API:")

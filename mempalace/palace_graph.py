@@ -8,11 +8,11 @@ Builds a navigable graph from the palace structure:
   - Edge types = halls (the corridors)
 
 Enables queries like:
-  "Start at chromadb-setup in wing_code, walk to wing_myproject"
+  "Start at a room in wing_code, walk to wing_myproject"
   "Find all rooms connected to riley-college-apps"
   "What topics bridge wing_hardware and wing_myproject?"
 
-No external graph DB needed — built from ChromaDB metadata.
+No external graph DB needed — built from palace metadata.
 """
 
 # PEP 604 (``str | None``) needs 3.10+ at runtime; the project still
@@ -89,7 +89,7 @@ def _get_collection(config=None):
 
 def build_graph(col=None, config=None):
     """
-    Build the palace graph from ChromaDB metadata.
+    Build the palace graph from palace metadata.
 
     Returns cached result if fresh (within TTL). Cache is invalidated
     on writes via invalidate_graph_cache(). Thread-safe via _graph_cache_lock.
@@ -122,14 +122,11 @@ def build_graph(col=None, config=None):
     while offset < total:
         batch = col.get(limit=1000, offset=offset, include=["metadatas"])
         for meta in batch["metadatas"]:
-            # ChromaDB can return ``None`` for drawers without metadata
-            # (legacy data, partial writes — upstream #1020 territory).
+            # The backend can return ``None`` for drawers without metadata
+            # (legacy data, partial writes).
             # Skip these silently rather than crash the whole graph
             # build — a single None drawer shouldn't take down /stats
-            # or any caller of build_graph for the entire palace. Caught
-            # 2026-04-25 by palace-daemon's verify-routes.sh smoke test
-            # against the canonical 151K palace. Closes the same gap as
-            # upstream #999 / fork PR #1094 in a different read path.
+            # or any caller of build_graph for the entire palace.
             if meta is None:
                 continue
             room = meta.get("room", "")
@@ -338,7 +335,7 @@ def _fuzzy_match(query: str, nodes: dict, n: int = 5):
 #
 # Stored as a JSON file based on MempalaceConfig.palace_path (where the
 # palace itself lives) so they persist across palace rebuilds (not in
-# ChromaDB which can be recreated).
+# the backend which can be recreated).
 
 
 def _get_tunnel_file(config=None) -> str:
@@ -462,11 +459,11 @@ def _require_name(value: str, field: str) -> str:
 
 
 def _check_room_exists(wing: str, room: str, col) -> bool:
-    """Check if at least one drawer exists for the given wing/room in ChromaDB."""
+    """Check if at least one drawer exists for the given wing/room."""
     if col is None:
         # If collection is unreachable, can't verify, so allow.
         logger.debug(
-            "ChromaDB collection not reachable, skipping room existence validation for %s/%s",
+            "Collection not reachable, skipping room existence validation for %s/%s",
             wing,
             room,
         )
@@ -477,7 +474,7 @@ def _check_room_exists(wing: str, room: str, col) -> bool:
     except Exception:
         # If query fails, assume it's a temporary issue or permissions, and allow.
         logger.warning(
-            "Error checking room existence in ChromaDB for %s/%s; allowing tunnel creation.",
+            "Error checking room existence for %s/%s; allowing tunnel creation.",
             wing,
             room,
             exc_info=True,

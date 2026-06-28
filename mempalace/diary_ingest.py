@@ -204,7 +204,7 @@ def ingest_diaries(
                 try:
                     drawers_col.delete(where={"source_file": source_file})
                 except Exception as exc:
-                    # ChromaDB ``delete(where=...)`` against an empty collection
+                    # Backend ``delete(where=...)`` against an empty collection
                     # returns silently rather than raising, so this catch only
                     # fires on real backend errors (locked DB, schema mismatch,
                     # transient I/O). Log at debug to preserve diagnostics

@@ -103,7 +103,7 @@ __all__ = [
 ]
 
 
-# Same batch size as miner.py / convo_miner.py — bounds memory + Chroma payload.
+# Same batch size as miner.py / convo_miner.py — bounds memory + payload.
 DRAWER_UPSERT_BATCH_SIZE = 1000
 
 # Minimum chunk size (chars) — drawers below this are dropped as not useful.
@@ -715,7 +715,7 @@ def mine_formats(
         ``miner.py`` and ``convo_miner.py``). Only files matching
         ``SUPPORTED_FORMATS`` are processed.
     palace_path :
-        Path to the ChromaDB palace (the destination of the drawers).
+        Path to the palace (the destination of the drawers).
     wing :
         Wing name. Defaults to the basename of ``format_dir`` (normalized).
     agent :

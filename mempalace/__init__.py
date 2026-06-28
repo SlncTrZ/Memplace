@@ -7,7 +7,7 @@ import sys
 def _strip_leaked_pythonpath_from_sys_path() -> None:
     # Venvs inherit PYTHONPATH; on multi-Python systems it can cause
     # transitive imports to load compiled extensions (pydantic_core,
-    # chromadb_rust_bindings) from the wrong ABI. Remove sys.path entries
+    # rust_bindings) from the wrong ABI. Remove sys.path entries
     # the interpreter populated from PYTHONPATH so this process imports
     # only the venv's own packages. Comparison normalizes case + separators
     # so Windows paths and trailing-separator quirks do not slip through
