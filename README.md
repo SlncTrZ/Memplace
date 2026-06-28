@@ -5,7 +5,13 @@ No API key required. Exposed via MCP (Model Context Protocol) and CLI.
 
 **Version:** 3.5.0 | **License:** MIT
 
-> **Forked from [MemPalace/mempalace](https://github.com/MemPalace/mempalace)** — nâng cấp toàn diện bởi [@SlncTrZ](https://github.com/SlncTrZ)
+> **Forked from [MemPalace/mempalace](https://github.com/MemPalace/mempalace)** — đang được kiểm tra, nâng cấp và vận hành bởi [@SlncTrZ](https://github.com/SlncTrZ) (Trương Công Định)
+
+---
+
+## ⚠️ Trạng thái dự án
+
+> Dự án này đang trong quá trình **kiểm tra, sửa lỗi và nâng cấp**. Một số thành phần có thể chưa ổn định hoặc đang được tái cấu trúc.
 
 ---
 
@@ -79,7 +85,7 @@ Tunnels → connect rooms across wings
 | `mempalace_check_duplicate` | Check if content already exists before filing |
 | `mempalace_get_drawer` | Fetch a single drawer by ID (full content + metadata) |
 | `mempalace_list_drawers` | List drawers with pagination, wing/room filter |
-| `mempalace_get_aaak_spec` | Get the AAAK dialect specification |
+| `mempalace_get_aaak_spec` | Get the AAAK specification — ⚠️ lossy summary, not lossless compression |
 
 ### Palace (Write)
 
@@ -216,6 +222,31 @@ python -m pytest tests/ -v
 ## Security
 
 See [SECURITY.md](SECURITY.md) for API key protection and pre-commit hook setup.
+
+## ⚠️ Hạn chế hiện tại
+
+### AAAK Dialect — Lossy Summary, không phải nén lossless
+
+AAAK (`dialect.py`) là định dạng **tóm tắt có cấu trúc (structured summary)**, không phải nén lossless:
+
+- **Nén (Compression)**: Xử lý cục bộ bằng Python (`dialect.py`) — dùng regex, keyword mapping, emotion dictionary, entity extraction. **Không gọi LLM.**
+- **Giải nén (Decompression)**: Format được thiết kế để LLM đọc trực tiếp — không có decoder. LLM **suy diễn lại ngữ cảnh** từ các token còn lại, dẫn đến hallucination.
+- **Dữ liệu gốc**: Verbatim content được lưu riêng trong **drawers** (ChromaDB/Qdrant). AAAK chỉ là summary layer để định hướng tra cứu, không thay thế dữ liệu gốc.
+- Xem docstring đầu file `mempalace/dialect.py` để biết chi tiết.
+
+### Các hạn chế khác
+
+| Hạn chế | Mô tả |
+|---------|-------|
+| **MCP Server monolith** | `mcp_server.py` ~2k lines — 30 tools + request handler trong 1 file |
+| **CLI monolith** | `cli.py` ~2k lines — 31 functions, quá nhiều responsibility |
+| **Thiếu type hints** | Hầu hết các module chưa có type annotations đầy đủ |
+| **Version history** | Lịch sử git đã qua force push / rebase — một số commit cũ có thể không trace được |
+| **Phụ thuộc ChromaDB** | Backend mặc định ChromaDB có native dependencies (onnxruntime) có thể gây lỗi trên một số platform |
+| **Documentation** | Chưa có API docs tự động (Sphinx/MkDocs) |
+| **CI/CD** | Chưa có GitHub Actions workflow tự động |
+| **HTTP Server coupling** | `http_server.py` hardcode Qdrant wings, không dùng backend abstraction |
+| **Scripts technical debt** | `scripts/` có 7 script Python riêng lẻ trùng logic với code chính |
 
 ## License
 
