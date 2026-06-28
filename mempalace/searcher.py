@@ -222,7 +222,9 @@ def _hybrid_rank(
     return results
 
 
-def build_where_filter(wing: Optional[str] = None, room: Optional[str] = None, source_file: Optional[str] = None) -> dict:
+def build_where_filter(
+    wing: Optional[str] = None, room: Optional[str] = None, source_file: Optional[str] = None
+) -> dict:
     """Build a where filter from optional wing/room/source_file.
 
     A ``$and`` compound is used only when ≥2 clauses are present; a single
@@ -281,7 +283,9 @@ def _scoped_source_filter(source_file: str, parent_drawer_id: Any = None) -> dic
     return {"source_file": source_file}
 
 
-def _expand_with_neighbors(drawers_col: Any, matched_doc: str, matched_meta: dict, radius: int = 1) -> dict:
+def _expand_with_neighbors(
+    drawers_col: Any, matched_doc: str, matched_meta: dict, radius: int = 1
+) -> dict:
     """Expand a matched drawer with its ±radius sibling chunks in the same source file.
 
     Motivation — "drawer-grep context" feature: a closet hit returns one
@@ -356,10 +360,13 @@ def _expand_with_neighbors(drawers_col: Any, matched_doc: str, matched_meta: dic
     }
 
 
-
-
-
-def search(query: str, palace_path: str, wing: Optional[str] = None, room: Optional[str] = None, n_results: int = 5):
+def search(
+    query: str,
+    palace_path: str,
+    wing: Optional[str] = None,
+    room: Optional[str] = None,
+    n_results: int = 5,
+):
     """
     Search the palace. Returns verbatim drawer content.
     Optionally filter by wing (project) or room (aspect).
@@ -404,11 +411,13 @@ def search(query: str, palace_path: str, wing: Optional[str] = None, room: Optio
     # `_hybrid_rank`; do the same here so CLI results match what agents
     # see via `mempalace_search`.
     metric = _metric_for_collection(col)
+
     def _safe_dist(d):
         try:
             return float(d)
         except (ValueError, TypeError):
             return 0.0
+
     hits = [
         {"text": doc or "", "distance": _safe_dist(dist), "metadata": meta or {}}
         for doc, meta, dist in zip(docs, metas, dists)
@@ -442,9 +451,6 @@ def search(query: str, palace_path: str, wing: Optional[str] = None, room: Optio
         print(f"  {'─' * 56}")
 
     print()
-
-
-
 
 
 def _merge_bm25_union_candidates(
@@ -666,6 +672,7 @@ def _vector_disabled_search(
     """
     if collection_name is None:
         from .config import get_configured_collection_name
+
         collection_name = get_configured_collection_name()
     drawers_col, open_error = _open_search_collection(palace_path, collection_name)
     if open_error:
@@ -731,18 +738,20 @@ def _vector_disabled_search(
         meta = meta or {}
         doc = doc or ""
         full_source = meta.get("source_file", "") or ""
-        candidates.append({
-            "text": doc,
-            "wing": meta.get("wing", "unknown"),
-            "room": meta.get("room", "unknown"),
-            "source_file": Path(full_source).name if full_source else "?",
-            "source_path": full_source,
-            "created_at": meta.get("filed_at", "unknown"),
-            "similarity": None,
-            "distance": None,
-            "matched_via": "bm25_fallback",
-            "bm25_score": 0.0,
-        })
+        candidates.append(
+            {
+                "text": doc,
+                "wing": meta.get("wing", "unknown"),
+                "room": meta.get("room", "unknown"),
+                "source_file": Path(full_source).name if full_source else "?",
+                "source_path": full_source,
+                "created_at": meta.get("filed_at", "unknown"),
+                "similarity": None,
+                "distance": None,
+                "matched_via": "bm25_fallback",
+                "bm25_score": 0.0,
+            }
+        )
 
     # BM25 re-rank.
     doc_texts = [c["text"] for c in candidates]
@@ -766,7 +775,9 @@ def _vector_disabled_search(
     }
 
 
-def _open_search_collection(palace_path: str, collection_name: Optional[str] = None) -> tuple[Optional[Any], Optional[dict]]:
+def _open_search_collection(
+    palace_path: str, collection_name: Optional[str] = None
+) -> tuple[Optional[Any], Optional[dict]]:
     try:
         return get_collection(palace_path, collection_name=collection_name, create=False), None
     except BackendMismatchError as e:

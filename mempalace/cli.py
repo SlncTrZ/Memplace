@@ -83,20 +83,6 @@ def _selected_backend_for_palace(palace_path: str) -> str:
     return resolve_backend_name(palace_path, explicit=os.environ.get(_EXPLICIT_BACKEND_ENV))
 
 
-def _maintenance_requires_chroma(palace_path: str, command_name: str) -> bool:
-    try:
-        backend_name = _selected_backend_for_palace(palace_path)
-    except Exception as exc:  # noqa: BLE001 - user-facing guard before maintenance imports
-        print(f"\n  {command_name} cannot resolve the palace backend: {exc}", file=sys.stderr)
-        return False
-    # ChromaDB backend removed — all maintenance commands are no-ops
-    print(
-        f"\n  {command_name} is Chroma-only in this release (selected backend: {backend_name}).",
-        file=sys.stderr,
-    )
-    return False
-
-
 def _gather_origin_samples(project_dir) -> list:
     """Collect Tier-1 samples for corpus-origin detection.
 
@@ -974,32 +960,6 @@ def cmd_split(args):
         sys.argv = old_argv
 
 
-def cmd_migrate(args):
-    """Migrate palace from a different ChromaDB version."""
-    palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
-    if not _maintenance_requires_chroma(palace_path, "migrate"):
-        raise SystemExit(2)
-    from .migrate import migrate
-
-    migrate(
-        palace_path=palace_path,
-        dry_run=args.dry_run,
-        confirm=getattr(args, "yes", False),
-    )
-
-
-def cmd_migrate_wings(args):
-    """Normalize legacy wing names (strip leading/trailing separators)."""
-    palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
-    from .migrate import migrate_wing_names
-
-    migrate_wing_names(
-        palace_path=palace_path,
-        dry_run=args.dry_run,
-        confirm=getattr(args, "yes", False),
-    )
-
-
 def cmd_status(args):
     from .miner import status
 
@@ -1055,233 +1015,55 @@ def cmd_palace_set_embedder(args):
 
 
 def cmd_repair_status(args):
-    """Read-only HNSW capacity health check (#1222)."""
+    """Read-only Qdrant collection health check."""
     palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
-    if not _maintenance_requires_chroma(palace_path, "repair-status"):
-        raise SystemExit(2)
     from .repair import status as repair_status
 
-    repair_status(palace_path=palace_path)
+    result = repair_status(palace_path=palace_path)
+    if result.get("ok"):
+        print("  Palace health: OK")
+    else:
+        print("  Palace health check completed — see details above.")
 
 
 def cmd_repair(args):
-    """Rebuild palace vector index from SQLite metadata.
-
-    On success the palace SQLite file is VACUUMed and the FTS5 index is
-    rebuilt, so the next repair's integrity preflight reads a consistent
-    database (#1747).
-    """
+    """Run Qdrant-based palace repair — health check, backup, and rebuild."""
     config = MempalaceConfig()
-    collection_name = config.collection_name
     palace_path = os.path.abspath(
         os.path.expanduser(args.palace) if args.palace else config.palace_path
     )
-    if not _maintenance_requires_chroma(palace_path, "repair"):
-        raise SystemExit(2)
-    # ChromaDB backend removed — repair is a no-op
-    print("  ChromaDB backend has been removed; no repair needed.")
-    return
-    import shutil
-    from .migrate import confirm_destructive_action, contains_palace_database
+    from .repair import repair_health, repair_backup, repair_rebuild
 
-    if getattr(args, "repair_action", None) == "rebuild-index":
-        args.mode = "from-sqlite"
-        args.archive_existing = True
-
-    if getattr(args, "mode", "legacy") == "max-seq-id":
-        from .repair import repair_max_seq_id
-
-        repair_max_seq_id(
-            palace_path,
-            segment=getattr(args, "segment", None),
-            from_sidecar=getattr(args, "from_sidecar", None),
-            backup=getattr(args, "backup", True),
-            dry_run=getattr(args, "dry_run", False),
-            assume_yes=getattr(args, "yes", False),
-        )
-        return
-
-    if getattr(args, "mode", "legacy") == "from-sqlite":
-        from .migrate import confirm_destructive_action
-        from .repair import RebuildPartialError, rebuild_from_sqlite
-
-        source_path = getattr(args, "source", None)
-        source_path = (
-            os.path.abspath(os.path.expanduser(source_path)) if source_path else palace_path
-        )
-        archive_existing = getattr(args, "archive_existing", False)
-
-        # Gate any path that touches the user's existing palace dir
-        # behind confirm_destructive_action. The legacy mode already
-        # gates; from-sqlite needs the same protection because:
-        # (a) --archive-existing renames the existing palace,
-        # (b) --source PATH writes into --palace dir which the user
-        #     may not realize is also a palace.
-        # No prompt when source != dest AND dest does not exist (pure
-        # extract-into-fresh-dir case is non-destructive to existing
-        # palaces).
-        is_destructive_to_dest = source_path == palace_path or os.path.exists(palace_path)
-        if is_destructive_to_dest and not confirm_destructive_action(
-            "Rebuild from SQLite", palace_path, assume_yes=getattr(args, "yes", False)
-        ):
-            return
-
-        try:
-            counts = rebuild_from_sqlite(
-                source_palace=source_path,
-                dest_palace=palace_path,
-                archive_existing_dest=archive_existing,
-            )
-        except RebuildPartialError as exc:
-            # The error itself was already printed by rebuild_from_sqlite
-            # with recovery instructions; surface a non-zero exit so
-            # scripts and CI gates see the failure.
-            print(
-                "\n  Rebuild partial — see message above. "
-                f"Failed in collection: {exc.failed_collection}"
-            )
-            sys.exit(1)
-        # An empty counts dict is rebuild_from_sqlite's documented signal
-        # for a validation refusal (missing source, existing dest,
-        # in-place without --archive-existing). The library already
-        # printed an actionable message; exit non-zero so unattended
-        # scripts/CI distinguish "invalid inputs" from a successful
-        # rebuild that legitimately found zero rows (which still returns
-        # a populated dict with 0-valued counts).
-        if not counts:
-            sys.exit(1)
-        return
-
-    db_path = os.path.join(palace_path, "chroma.sqlite3")
-
-    if not os.path.isdir(palace_path):
-        print(f"\n  No palace found at {palace_path}")
-        return
-    if not contains_palace_database(palace_path):
-        print(f"\n No palace database found at {db_path}")
-        return
-
-    # Run the SQLite integrity preflight before any chromadb client open.
-    # ChromaDB's rust binding raises pyo3_runtime.PanicException on a
-    # malformed page, which is not a regular Exception subclass and
-    # propagates past the try/except below — the user gets a 30-line
-    # stack trace instead of the friendly abort message. Run quick_check
-    # here so we can surface the clear recovery instructions and exit
-    # cleanly before chromadb's compactor touches the disk.
-    sqlite_errors = sqlite_integrity_errors(palace_path)
-    if sqlite_errors:
-        sqlite_errors = maybe_autoheal_fts5_index(palace_path, sqlite_errors)
-    if sqlite_errors:
-        print_sqlite_integrity_abort(palace_path, sqlite_errors)
-        sys.exit(1)
-
-    preflight = maybe_repair_poisoned_max_seq_id_before_rebuild(
-        palace_path,
-        backup=getattr(args, "backup", True),
-        dry_run=getattr(args, "dry_run", False),
-        assume_yes=getattr(args, "yes", False),
-    )
-    if preflight is not None:
-        return
+    mode = getattr(args, "mode", "legacy")
+    if mode != "legacy":
+        print(f"  Mode {mode!r} is only supported via direct API; falling back to health check.")
+        mode = "legacy"
 
     print(f"\n{'=' * 55}")
-    print(" MemPalace Repair")
+    print(" MemPalace Repair (Qdrant)")
     print(f"{'=' * 55}\n")
     print(f"  Palace: {palace_path}")
 
-    backend = ChromaBackend()
-
-    # Try to read existing drawers
-    try:
-        col = backend.get_collection(palace_path, collection_name)
-        total = col.count()
-        print(f"  Drawers found: {total}")
-    except Exception as e:
-        print(f"  Error reading palace: {e}")
-        print(index_read_recovery_guidance())
+    # Run health check
+    health = repair_health(palace_path=palace_path)
+    if not health.get("ok"):
+        print("  Error during health check — see details above.")
         return
 
-    if total == 0:
-        print("  Nothing to repair.")
-        return
+    # Backup
+    bkp = repair_backup(palace_path=palace_path)
+    if bkp.get("backup_path"):
+        print(f"  Backup saved at {bkp['backup_path']}")
 
-    if not confirm_destructive_action(
-        "Repair", palace_path, assume_yes=getattr(args, "yes", False)
-    ):
-        return
-
-    # Extract all drawers in batches
-    print("\n  Extracting drawers...")
-    batch_size = 5000
-    all_ids, all_docs, all_metas = _extract_drawers(col, total, batch_size)
-    print(f"  Extracted {len(all_ids)} drawers")
-
-    # ── #1208 guard ──────────────────────────────────────────────────
-    # Cross-check against the SQLite ground truth before doing anything
-    # destructive. Catches the user-reported case where chromadb's
-    # collection-layer get() silently caps at 10,000 rows even on much
-    # larger palaces (e.g. after manual HNSW quarantine). Override with
-    # --confirm-truncation-ok only after independently verifying the
-    # extraction count is real.
-    try:
-        check_extraction_safety(
-            palace_path,
-            len(all_ids),
-            confirm_truncation_ok=getattr(args, "confirm_truncation_ok", False),
-            collection_name=collection_name,
-        )
-    except TruncationDetected as e:
-        print(e.message)
-        return
-
-    palace_path = os.path.normpath(palace_path)
-    backup_path = palace_path + ".backup"
-    if os.path.exists(backup_path):
-        if not contains_palace_database(backup_path):
-            print(
-                "  Backup validation failed: backup path exists but does not contain chroma.sqlite3. "
-                f"Please remove or rename: {backup_path}"
-            )
-            return
-        shutil.rmtree(backup_path)
-    print(f"  Backing up to {backup_path}...")
-    shutil.copytree(palace_path, backup_path)
-
-    try:
-        filed = _rebuild_collection_via_temp(
-            backend,
-            palace_path,
-            all_ids,
-            all_docs,
-            all_metas,
-            batch_size,
-            collection_name=collection_name,
-            progress=print,
-        )
-    except RebuildCollectionError as e:
-        print(f"  Repair failed: {e}")
-        if getattr(e, "live_replaced", False):
-            print("  Live collection was already replaced; restoring from backup...")
-            try:
-                _close_chroma_handles(palace_path, backend=backend)
-                if os.path.exists(palace_path):
-                    shutil.rmtree(palace_path)
-                shutil.copytree(backup_path, palace_path)
-                print(f"  Restore complete from backup: {backup_path}")
-            except Exception as restore_error:
-                print(f"  Automatic restore failed: {restore_error}")
-                print("  Manual recovery required:")
-                print(f"    1. Remove or rename the broken directory: {palace_path}")
-                print(f"    2. Restore the backup directory to: {palace_path}")
-                print(f"       Backup location: {backup_path}")
-        sys.exit(1)
-
-    # The bulk delete + re-upsert cycle above leaves the FTS5 inverted index
-    # inconsistent, which fails the next repair's integrity preflight (#1747).
-    _post_rebuild_cleanup(palace_path, backend=backend, progress=print)
-
-    print(f"\n  Repair complete. {filed} drawers rebuilt.")
-    print(f"  Backup saved at {backup_path}")
+    # Rebuild
+    result = repair_rebuild(
+        palace_path=palace_path,
+        collection_name=config.collection_name,
+    )
+    if result.get("ok"):
+        print("\n  Repair complete.")
+    else:
+        print("\n  Repair encountered issues — see details above.")
     print(f"\n{'=' * 55}\n")
 
 
@@ -1509,7 +1291,7 @@ def main():
         "--backend",
         dest="global_backend",
         default=None,
-        help="Storage backend to use for this command (default: config/env/detected/chroma)",
+        help="Storage backend to use for this command (default: config/env/detected/qdrant)",
     )
 
     sub = parser.add_subparsers(dest="command")
@@ -1520,7 +1302,7 @@ def main():
     p_init.add_argument(
         "--backend",
         default=None,
-        help="Storage backend to persist for this palace (default: chroma)",
+        help="Storage backend to persist for this palace (default: qdrant)",
     )
     p_init.add_argument(
         "--yes",
@@ -1607,7 +1389,7 @@ def main():
     p_mine.add_argument(
         "--backend",
         default=None,
-        help="Storage backend to use for this mine (default: config/env/detected/chroma)",
+        help="Storage backend to use for this mine (default: config/env/detected/qdrant)",
     )
     p_mine.add_argument(
         "--mode",
@@ -1740,7 +1522,7 @@ def main():
     p_search.add_argument(
         "--backend",
         default=None,
-        help="Storage backend to use for this search (default: config/env/detected/chroma)",
+        help="Storage backend to use for this search (default: config/env/detected/qdrant)",
     )
     p_search.add_argument("--wing", default=None, help="Limit to one project")
     p_search.add_argument("--room", default=None, help="Limit to one room")
@@ -1835,73 +1617,19 @@ def main():
         ),
     )
     p_repair.add_argument(
-        "--confirm-truncation-ok",
-        action="store_true",
-        help=(
-            "Override the #1208 safety guard. Required when chromadb's collection-layer "
-            "extraction returns exactly 10,000 drawers and the SQLite ground-truth check "
-            "either matches or can't be read. Use only after independently confirming "
-            "the palace really contains that count."
-        ),
-    )
-    p_repair.add_argument(
-        "--mode",
-        choices=["legacy", "max-seq-id", "from-sqlite"],
-        default="legacy",
-        help=(
-            "legacy: full-palace rebuild via the chromadb client (default). "
-            "max-seq-id: un-poison max_seq_id rows corrupted by the legacy 0.6.x shim. "
-            "from-sqlite: rebuild by reading rows directly from chroma.sqlite3, "
-            "bypassing the chromadb client. Use when legacy mode bails because the "
-            "chromadb client cannot open the collection."
-        ),
-    )
-    p_repair.add_argument(
-        "--source",
-        default=None,
-        help=(
-            "Source palace path for --mode from-sqlite (defaults to --palace). "
-            "Use when extracting from an archived corrupt palace into a new location."
-        ),
-    )
-    p_repair.add_argument(
-        "--archive-existing",
-        action="store_true",
-        help=(
-            "For --mode from-sqlite when --source equals --palace: rename the "
-            "existing palace to <palace>.pre-rebuild-<timestamp> before "
-            "rebuilding so the corrupt copy is preserved."
-        ),
-    )
-    p_repair.add_argument(
-        "--segment",
-        default=None,
-        help="Segment UUID filter for --mode max-seq-id (repairs only that segment).",
-    )
-    p_repair.add_argument(
-        "--from-sidecar",
-        default=None,
-        help=(
-            "Path to a pre-corruption chroma.sqlite3 sidecar (for --mode max-seq-id); "
-            "clean values are copied from its max_seq_id table verbatim."
-        ),
+        "--yes", action="store_true", help="Skip confirmation for destructive changes"
     )
     p_repair.add_argument(
         "--backup",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Back up SQLite before mutation (default: on)",
-    )
-    p_repair.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print detected poisoned rows and exit without mutation (--mode max-seq-id only)",
+        help="Back up Qdrant collection before repair (default: on)",
     )
 
-    # repair-status — read-only HNSW capacity health check (#1222)
+    # repair-status — read-only Qdrant health check
     sub.add_parser(
         "repair-status",
-        help="Compare sqlite vs HNSW element counts (read-only; never opens a chromadb client)",
+        help="Read-only Qdrant collection health check",
     )
 
     # daemon
@@ -1916,7 +1644,7 @@ def main():
     p_daemon_start.add_argument(
         "--backend",
         default=None,
-        help="Storage backend for this daemon (default: config/env/detected/chroma)",
+        help="Storage backend for this daemon (default: config/env/detected/qdrant)",
     )
     daemon_sub.add_parser("stop", help="Stop the daemon")
     daemon_sub.add_parser("status", help="Show daemon status")
@@ -1937,37 +1665,11 @@ def main():
     )
 
     # status
-    # migrate
-    p_migrate = sub.add_parser(
-        "migrate",
-        help="Migrate palace from a different ChromaDB version (fixes 3.0.0 → 3.1.0 upgrade)",
-    )
-    p_migrate.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be migrated without changing anything",
-    )
-    p_migrate.add_argument(
-        "--yes", action="store_true", help="Skip confirmation for destructive changes"
-    )
-
-    # migrate-wings
-    p_migrate_wings = sub.add_parser(
-        "migrate-wings",
-        help="Normalize legacy wing names (strip leading/trailing separators) so pre-#1675 palaces stay discoverable",
-    )
-    p_migrate_wings.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would change without modifying the palace",
-    )
-    p_migrate_wings.add_argument("--yes", action="store_true", help="Skip the confirmation prompt")
-
     p_status = sub.add_parser("status", help="Show what's been filed")
     p_status.add_argument(
         "--backend",
         default=None,
-        help="Storage backend to use for status (default: config/env/detected/chroma)",
+        help="Storage backend to use for status (default: config/env/detected/qdrant)",
     )
 
     p_palace = sub.add_parser("palace", help="Palace maintenance commands")
@@ -1992,7 +1694,7 @@ def main():
     p_set_embedder.add_argument(
         "--backend",
         default=None,
-        help="Storage backend (default: config/env/detected/chroma)",
+        help="Storage backend (default: config/env/detected/qdrant)",
     )
 
     args = parser.parse_args()
@@ -2045,8 +1747,6 @@ def main():
         "wake-up": cmd_wakeup,
         "repair": cmd_repair,
         "repair-status": cmd_repair_status,
-        "migrate": cmd_migrate,
-        "migrate-wings": cmd_migrate_wings,
         "status": cmd_status,
     }
     dispatch[args.command](args)

@@ -96,7 +96,7 @@ class Layer1:
         self.wing = wing
 
     def generate(self) -> str:
-        """Pull top drawers from ChromaDB and format as compact L1 text."""
+        """Pull top drawers from the palace and format as compact L1 text."""
         try:
             col = _get_collection(self.palace_path, create=False)
         except Exception:
@@ -114,8 +114,16 @@ class Layer1:
                 batch = col.get(**kwargs)
             except Exception:
                 break
-            batch_docs = list(batch.get("documents", [])) if isinstance(batch, dict) else getattr(batch, "documents", None) or []
-            batch_metas = list(batch.get("metadatas", [])) if isinstance(batch, dict) else getattr(batch, "metadatas", None) or []
+            batch_docs = (
+                list(batch.get("documents", []))
+                if isinstance(batch, dict)
+                else getattr(batch, "documents", None) or []
+            )
+            batch_metas = (
+                list(batch.get("metadatas", []))
+                if isinstance(batch, dict)
+                else getattr(batch, "metadatas", None) or []
+            )
             if not batch_docs:
                 break
             docs.extend(batch_docs)
@@ -201,7 +209,9 @@ class Layer2:
         cfg = MempalaceConfig()
         self.palace_path = palace_path or cfg.palace_path
 
-    def retrieve(self, wing: Optional[str] = None, room: Optional[str] = None, n_results: int = 10) -> str:
+    def retrieve(
+        self, wing: Optional[str] = None, room: Optional[str] = None, n_results: int = 10
+    ) -> str:
         """Retrieve drawers filtered by wing and/or room."""
         try:
             col = _get_collection(self.palace_path, create=False)
@@ -246,7 +256,7 @@ class Layer2:
 
 
 # ---------------------------------------------------------------------------
-# Layer 3 — Deep Search (full semantic search via ChromaDB)
+# Layer 3 — Deep Search (full semantic search via palace)
 # ---------------------------------------------------------------------------
 
 
@@ -341,7 +351,7 @@ class Layer3:
             _first_or_empty(results, "metadatas"),
             _first_or_empty(results, "distances"),
         ):
-            # ChromaDB may return None for doc/meta when a drawer's HNSW entry
+            # The backend may return None for doc/meta when a drawer's entry
             # exists but its metadata/document rows haven't been materialized
             # (partial-flush states, mid-delete, schema upgrade boundaries).
             # Degrade gracefully — the hit still appears with real distance;
@@ -407,11 +417,15 @@ class MemoryStack:
 
         return "\n".join(parts)
 
-    def recall(self, wing: Optional[str] = None, room: Optional[str] = None, n_results: int = 10) -> str:
+    def recall(
+        self, wing: Optional[str] = None, room: Optional[str] = None, n_results: int = 10
+    ) -> str:
         """On-demand L2 retrieval filtered by wing/room."""
         return self.l2.retrieve(wing=wing, room=room, n_results=n_results)
 
-    def search(self, query: str, wing: Optional[str] = None, room: Optional[str] = None, n_results: int = 5) -> str:
+    def search(
+        self, query: str, wing: Optional[str] = None, room: Optional[str] = None, n_results: int = 5
+    ) -> str:
         """Deep L3 semantic search."""
         return self.l3.search(query, wing=wing, room=room, n_results=n_results)
 
