@@ -4,6 +4,7 @@ Give your AI a memory. Mine projects and conversations into a searchable palace.
 No API key required. Exposed via MCP (Model Context Protocol) and CLI.
 
 **Version:** 3.5.0 | **License:** MIT
+[![CI](https://github.com/SlncTrZ/Memplace/actions/workflows/ci.yml/badge.svg)](https://github.com/SlncTrZ/Memplace/actions/workflows/ci.yml)
 
 > **Forked from [MemPalace/mempalace](https://github.com/MemPalace/mempalace)** — đang được kiểm tra, nâng cấp và vận hành bởi [@SlncTrZ](https://github.com/SlncTrZ) (Trương Công Định)
 
