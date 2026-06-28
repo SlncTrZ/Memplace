@@ -1,15 +1,17 @@
-# MemPlace v5.0.0 — Multi-Wing Architecture
+# MemPlace v3.5.0 — Multi-Backend Architecture
 
 ## 🎯 Major Changes
 
 ### Dynamic Multi-Wing System
 
 **Before (v4.0.0):**
+
 - Hardcoded 6 wings in `config.py`
 - Fixed collection mapping
 - Difficult to extend
 
 **After (v5.0.0):**
+
 - **Dynamic wing detection** from Qdrant collections
 - **Auto-discovery** of `meilin_*` prefixed collections
 - **Custom config** via `WING_COLLECTIONS` environment variable
@@ -32,18 +34,21 @@ WING_NAMES = list(WING_COLLECTIONS.keys())
 ### Usage Examples
 
 **Default (auto-detected):**
+
 ```bash
 # Auto-discovers all meilin_* collections in Qdrant
 python -m mempalace
 ```
 
 **Custom wings:**
+
 ```bash
 export WING_COLLECTIONS='{"docs": "meilin_docs", "ai": "meilin_ai"}'
 python -m mempalace
 ```
 
 **Add new wing:**
+
 ```bash
 # 1. Create collection in Qdrant
 curl -X PUT "http://localhost:6333/collections/meilin_new_wing" \
@@ -66,12 +71,14 @@ python -m mempalace
 **New:** `scripts/pre_commit_check.py`
 
 Detects and blocks commits containing:
+
 - API keys (`api_key = "..."`)
 - Secrets/tokens (16+ chars)
 - Passwords (8+ chars)
 - Specific env vars (`QDRANT_API_KEY`)
 
 **Installation:**
+
 ```bash
 chmod +x scripts/pre_commit_check.py
 ln -s ../../scripts/pre_commit_check.py .git/hooks/pre-commit
@@ -82,6 +89,7 @@ ln -s ../../scripts/pre_commit_check.py .git/hooks/pre-commit
 **New:** `SECURITY.md`
 
 Comprehensive guide covering:
+
 - ✅/❌ DO'S and DON'TS for API keys
 - Pre-commit hook setup
 - Emergency procedures for leaked keys
@@ -91,6 +99,7 @@ Comprehensive guide covering:
 ### Enhanced .gitignore
 
 Added protection for:
+
 ```gitignore
 .env
 .env.local
@@ -127,6 +136,7 @@ All files updated from "6-Wing" → "Multi-Wing":
 ### Tool Descriptions Updated
 
 MCP tool descriptions now emphasize:
+
 - "6 wings" → "Multi-Wing Palace"
 - "All 6 wings" → "All wings available in Qdrant"
 - "Search across 5 wings" → "Search across wings"
@@ -139,6 +149,7 @@ MCP tool descriptions now emphasize:
 **No breaking changes!** If you're using default 6 wings, everything works as before.
 
 **To add custom wings:**
+
 ```bash
 # Option 1: Create Qdrant collections (auto-detected)
 # Option 2: Set WING_COLLECTIONS env var
@@ -158,6 +169,7 @@ from config import WING_NAMES  # Dynamic, fetched from Qdrant
 ```
 
 **Testing:**
+
 ```python
 # Mock for tests
 import os
@@ -278,8 +290,9 @@ None. Backward compatible with v4.0.0.
 ## 📞 Support
 
 For issues or questions:
-- GitHub: https://github.com/truongcongdinh97/Memplace
-- Security: security@yourdomain.com (for vulnerabilities)
+
+- GitHub: <https://github.com/truongcongdinh97/Memplace>
+- Security: <security@yourdomain.com> (for vulnerabilities)
 
 ---
 

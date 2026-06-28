@@ -1,35 +1,65 @@
-"""conftest — Test fixtures for mempalace tests.
+"""conftest — Shared fixtures for MemPalace tests.
 
-Wing: openclaw
-Topic: mempalace_qdrant
-Last Updated: 2026-04-24
+Wing: openclaw | Topic: mempalace | Updated: 2026-06-28
 """
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import patch, MagicMock
+
+
+def _patch_tool(tool_name, response):
+    """Context manager: temporarily replace a tool handler in TOOLS dict."""
+    from mempalace.mcp_server import TOOLS
+
+    _orig = TOOLS[tool_name]["handler"]
+    TOOLS[tool_name]["handler"] = MagicMock(return_value=response)
+    return _orig
+
+
+def _unpatch_tool(tool_name, orig_handler):
+    """Restore original tool handler."""
+    from mempalace.mcp_server import TOOLS
+
+    TOOLS[tool_name]["handler"] = orig_handler
 
 
 @pytest.fixture
-def mock_qdrant_status():
-    """Mock Qdrant status response."""
+def mock_tool_response():
+    """Return a (start, stop) pair for temporarily patching a tool handler.
+
+    Usage::
+
+        orig = mock_tool_response("mempalace_status", {"total_drawers": 42})
+        try:
+            resp = handle_request({...})
+        finally:
+            mock_tool_response.stop("mempalace_status", orig)
+    """
+    return _patch_tool
+
+
+@pytest.fixture
+def sample_drawer_data():
+    """Sample drawer metadata for unit tests."""
     return {
-        "backend": "qdrant",
-        "qdrant_url": "http://localhost:6333",
-        "ollama_url": "http://localhost:11434",
-        "embed_model": "nomic-embed-text:latest",
-        "wings": {
-            "tcdserver": {"collection": "meilin_tcdserver", "points": 100, "status": "green"},
-            "openclaw": {"collection": "meilin_openclaw", "points": 200, "status": "green"},
-            "robotics": {"collection": "meilin_robotics", "points": 50, "status": "green"},
-            "code_chronicles": {"collection": "meilin_code_chronicles", "points": 75, "status": "green"},
-            "omniscience_wiki": {"collection": "meilin_omniscience_wiki", "points": 30, "status": "green"},
-            "conversation": {"collection": "meilin_conversation", "points": 500, "status": "green"},
-        },
-        "total_points": 955,
+        "id": "drawer-001",
+        "wing": "test_wing",
+        "room": "test_room",
+        "content": "This is test content for MemPalace unit tests.",
+        "source_file": "/test/source.md",
+        "added_by": "mcp",
+        "filed_at": "2026-06-28T12:00:00",
     }
 
 
 @pytest.fixture
-def mock_embedding():
-    """Return a fake 768-dim embedding vector."""
-    return [0.1] * 768
+def sample_kg_data():
+    """Sample knowledge graph triple for unit tests."""
+    return {
+        "subject": "TestEntity",
+        "predicate": "test_relation",
+        "object": "TestValue",
+        "valid_from": "2026-01-01",
+        "valid_to": None,
+    }

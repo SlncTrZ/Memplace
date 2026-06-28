@@ -75,7 +75,9 @@ def get_embedding(text: str) -> Optional[list]:
         embedding = result.get("embedding")
         if embedding and len(embedding) == EMBED_DIMENSION:
             return embedding
-        logger.warning(f"Embedding dimension mismatch: got {len(embedding) if embedding else 0}, expected {EMBED_DIMENSION}")
+        logger.warning(
+            f"Embedding dimension mismatch: got {len(embedding) if embedding else 0}, expected {EMBED_DIMENSION}"
+        )
         return None
     except Exception as e:
         logger.error(f"Embedding generation failed: {e}")
@@ -149,7 +151,7 @@ def process_collection(collection: str) -> dict:
     total_points = info.get("points_count", 0)
     total_vectors = info.get("vectors_count", 0)
 
-    logger.info(f"\n{'='*60}")
+    logger.info(f"\n{'=' * 60}")
     logger.info(f"Collection: {collection}")
     logger.info(f"  Points: {total_points}, Existing vectors: {total_vectors}")
 
@@ -193,11 +195,13 @@ def process_collection(collection: str) -> dict:
                 failed += 1
                 continue
 
-            batch_points.append({
-                "id": point_id,
-                "vector": embedding,
-                "payload": payload,  # Giữ nguyên payload gốc
-            })
+            batch_points.append(
+                {
+                    "id": point_id,
+                    "vector": embedding,
+                    "payload": payload,  # Giữ nguyên payload gốc
+                }
+            )
             processed += 1
 
             # Batch update
@@ -280,7 +284,9 @@ def main():
 
     for r in results:
         status = "✅" if r["vectors_after"] > r["vectors_before"] else "⏭️"
-        logger.info(f"  {status} {r['collection']}: {r['vectors_before']} -> {r['vectors_after']} vectors")
+        logger.info(
+            f"  {status} {r['collection']}: {r['vectors_before']} -> {r['vectors_after']} vectors"
+        )
 
 
 if __name__ == "__main__":

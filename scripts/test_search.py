@@ -1,4 +1,5 @@
 """test_search — Kiem tra semantic search tren Qdrant."""
+
 import os
 import requests, json
 
@@ -12,15 +13,22 @@ OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 
 # 1. Embed query
 query = "Docker compose configuration"
-r = requests.post(f"{OLLAMA_URL}/api/embeddings",
-    json={"model": "nomic-embed-text:latest", "prompt": query}, timeout=45)
+r = requests.post(
+    f"{OLLAMA_URL}/api/embeddings",
+    json={"model": "nomic-embed-text:latest", "prompt": query},
+    timeout=45,
+)
 v = r.json().get("embedding")
 print(f"Query: {query}")
 print(f"Embed dim: {len(v)}")
 
 # 2. Search
-r2 = requests.post(f"{QDRANT_URL}/collections/meilin_tcdserver/points/search",
-    headers=H, json={"vector": v, "limit": 3, "with_payload": True}, timeout=30)
+r2 = requests.post(
+    f"{QDRANT_URL}/collections/meilin_tcdserver/points/search",
+    headers=H,
+    json={"vector": v, "limit": 3, "with_payload": True},
+    timeout=30,
+)
 hits = r2.json().get("result", [])
 print(f"Results: {len(hits)}")
 for h in hits:

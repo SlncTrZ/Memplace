@@ -193,9 +193,10 @@ def _refresh_vector_disabled_flag() -> None:
     _vector_disabled_reason = ""
     _vector_capacity_status = {}
 
+
 def _search_conversation(query: str, limit: int = 5, max_distance: float = 1.5) -> list:
     """Search conversation collection (meilin_conversation) by direct Qdrant query.
-    
+
     Steps:
     1. Get embedding vector from Ollama for the query
     2. Query Qdrant meilin_conversation collection with the vector
@@ -229,15 +230,15 @@ def _search_conversation(query: str, limit: int = 5, max_distance: float = 1.5) 
     for doc, meta, dist in zip(docs, metas, dists):
         if max_distance > 0.0 and dist > max_distance:
             continue
-        
+
         # Map conversation payload -> mempalace drawer schema
         raw_session = meta.get("session_id") or ""
         raw_date = meta.get("date") or ""
         raw_ts = meta.get("timestamp") or ""
-        
+
         # Room: session_id -> date -> default
         room_val = str(raw_session)[:48] if raw_session else (raw_date or "pi_conversation")
-        
+
         # Source file: date-based or timestamp-based
         if raw_date:
             src_file = "chat_%s.md" % raw_date
@@ -246,13 +247,13 @@ def _search_conversation(query: str, limit: int = 5, max_distance: float = 1.5) 
             src_file = "chat_%s.md" % ts_str
         else:
             src_file = "pi_conversation.md"
-        
+
         # Created_at: timestamp -> date -> unknown
         created_at = raw_ts or raw_date or "unknown"
-        
+
         # Display text: content field -> summary -> raw doc
         display_text = meta.get("content") or meta.get("summary") or doc or ""
-        
+
         mapped_meta = {
             "wing": "conversation",
             "room": room_val,
@@ -261,7 +262,7 @@ def _search_conversation(query: str, limit: int = 5, max_distance: float = 1.5) 
             "_summary": meta.get("summary", "")[:120],
             "_message_count": meta.get("message_count", 0),
         }
-        
+
         entry = {
             "text": display_text,
             "wing": "conversation",
@@ -277,10 +278,8 @@ def _search_conversation(query: str, limit: int = 5, max_distance: float = 1.5) 
             "_collection": _CONVERSATION_COLLECTION,
         }
         mapped.append(entry)
-    
+
     return mapped
-
-
 
 
 # ==================== WRITE-AHEAD LOG ====================
@@ -335,11 +334,7 @@ def _wal_log(operation: str, params: dict, result: dict = None):
 
 def _get_client():
     """Return the Qdrant backend instance (cached)."""
-    global \
-        _client_cache, \
-        _collection_cache, \
-        _metadata_cache, \
-        _metadata_cache_time
+    global _client_cache, _collection_cache, _metadata_cache, _metadata_cache_time
 
     if _client_cache is None:
         _refresh_vector_disabled_flag()
@@ -353,15 +348,18 @@ def _get_client():
 def _get_collection(create=False):
     """Return the Qdrant collection, caching between calls."""
     global _client_cache, _collection_cache, _metadata_cache, _metadata_cache_time
-    
+
     if _collection_cache is not None:
         return _collection_cache
-    
+
     for attempt in range(2):
         try:
             backend = _get_client()
             from .backends.base import PalaceRef
-            palace_ref = PalaceRef(id=_config.palace_path or "default", local_path=_config.palace_path)
+
+            palace_ref = PalaceRef(
+                id=_config.palace_path or "default", local_path=_config.palace_path
+            )
             _collection_cache = backend.get_collection(
                 palace=palace_ref,
                 collection_name=_config.collection_name,
@@ -377,8 +375,10 @@ def _get_collection(create=False):
                 _metadata_cache_time = 0
                 continue
             _collection_cache = None
-    
+
     return _collection_cache
+
+
 def _no_palace():
     return {
         "error": "No palace found",
@@ -442,6 +442,8 @@ def _sanitize_optional_name(value: str = None, field_name: str = "name") -> str:
 def _tool_status_via_sqlite() -> dict:
     """Qdrant status."""
     return {"backend": "qdrant"}
+
+
 def tool_status():
     # Run the safe sqlite/pickle probe before we touch chromadb. In the
     # #1222 failure mode, opening the persistent client to call .count()
@@ -582,89 +584,90 @@ def tool_get_taxonomy():
     return result
 
 
-
 def tool_search(
-        query: str,
-        limit: int = 5,
-        wing: str = None,
-        room: str = None,
-        max_distance: float = 1.5,
-        min_similarity: float = None,
-        context: str = None,
-    ):
-        limit = max(1, min(limit, _MAX_RESULTS))
-        try:
-            wing = _sanitize_optional_name(wing, "wing")
-            room = _sanitize_optional_name(room, "room")
-        except ValueError as e:
-            return {"error": str(e)}
-        dist = (1.0 - min_similarity) if min_similarity is not None else max_distance
-        sanitized = sanitize_query(query)
-        _refresh_vector_disabled_flag()
+    query: str,
+    limit: int = 5,
+    wing: str = None,
+    room: str = None,
+    max_distance: float = 1.5,
+    min_similarity: float = None,
+    context: str = None,
+):
+    limit = max(1, min(limit, _MAX_RESULTS))
+    try:
+        wing = _sanitize_optional_name(wing, "wing")
+        room = _sanitize_optional_name(room, "room")
+    except ValueError as e:
+        return {"error": str(e)}
+    dist = (1.0 - min_similarity) if min_similarity is not None else max_distance
+    sanitized = sanitize_query(query)
+    _refresh_vector_disabled_flag()
 
-        # Dual search: drawers (search_memories) + conversation (direct Qdrant)
-        merged = []
-        seen = set()
-        total_before = 0
-        searched_collections = [_config.collection_name]
+    # Dual search: drawers (search_memories) + conversation (direct Qdrant)
+    merged = []
+    seen = set()
+    total_before = 0
+    searched_collections = [_config.collection_name]
 
-        # Sequential search
+    # Sequential search
+    try:
+        dr = search_memories(
+            sanitized["clean_query"],
+            palace_path=_config.palace_path,
+            wing=wing,
+            room=room,
+            n_results=limit,
+            max_distance=dist,
+            vector_disabled=_vector_disabled,
+            collection_name=_config.collection_name,
+        )
+        if dr and "results" in dr:
+            for hit in dr["results"]:
+                hit["_collection"] = _config.collection_name
+                merged.append(hit)
+                total_before += dr.get("total_before_filter", 0)
+    except Exception as exc:
+        logger.error("Drawers search failed: %s", exc)
+
+    if not wing and not room:
+        searched_collections.append(_CONVERSATION_COLLECTION)
         try:
-            dr = search_memories(
-                sanitized["clean_query"],
-                palace_path=_config.palace_path,
-                wing=wing,
-                room=room,
-                n_results=limit,
-                max_distance=dist,
-                vector_disabled=_vector_disabled,
-                collection_name=_config.collection_name,
-            )
-            if dr and "results" in dr:
-                for hit in dr["results"]:
-                    hit["_collection"] = _config.collection_name
+            conv_hits = _search_conversation(sanitized["clean_query"], limit, dist)
+            for hit in conv_hits:
+                key = (hit.get("source_file", "?"), hit.get("text", "")[:80])
+                if key not in seen:
+                    seen.add(key)
                     merged.append(hit)
-                    total_before += dr.get("total_before_filter", 0)
+                    total_before += 1
         except Exception as exc:
-            logger.error("Drawers search failed: %s", exc)
+            logger.error("Conversation search failed: %s", exc)
 
-        if not wing and not room:
-            searched_collections.append(_CONVERSATION_COLLECTION)
-            try:
-                conv_hits = _search_conversation(sanitized["clean_query"], limit, dist)
-                for hit in conv_hits:
-                    key = (hit.get("source_file", "?"), hit.get("text", "")[:80])
-                    if key not in seen:
-                        seen.add(key)
-                        merged.append(hit)
-                        total_before += 1
-            except Exception as exc:
-                logger.error("Conversation search failed: %s", exc)
+    merged = _hybrid_rank(merged, sanitized["clean_query"])
 
-        merged = _hybrid_rank(merged, sanitized["clean_query"])
+    result = {
+        "query": query,
+        "filters": {"wing": wing, "room": room},
+        "total_before_filter": total_before,
+        "results": merged[:limit],
+        "searched_collections": searched_collections,
+    }
 
-        result = {
-            "query": query,
-            "filters": {"wing": wing, "room": room},
-            "total_before_filter": total_before,
-            "results": merged[:limit],
-            "searched_collections": searched_collections,
+    if _vector_disabled:
+        result["vector_disabled"] = True
+        result["vector_disabled_reason"] = _vector_disabled_reason
+    if sanitized["was_sanitized"]:
+        result["query_sanitized"] = True
+        result["sanitizer"] = {
+            "method": sanitized["method"],
+            "original_length": sanitized["original_length"],
+            "clean_length": sanitized["clean_length"],
+            "clean_query": sanitized["clean_query"],
         }
+    if context:
+        result["context_received"] = True
+    return result
 
-        if _vector_disabled:
-            result["vector_disabled"] = True
-            result["vector_disabled_reason"] = _vector_disabled_reason
-        if sanitized["was_sanitized"]:
-            result["query_sanitized"] = True
-            result["sanitizer"] = {
-                "method": sanitized["method"],
-                "original_length": sanitized["original_length"],
-                "clean_length": sanitized["clean_length"],
-                "clean_query": sanitized["clean_query"],
-            }
-        if context:
-            result["context_received"] = True
-        return result
+
 def tool_check_duplicate(content: str, threshold: float = 0.9):
     _refresh_vector_disabled_flag()
     if _vector_disabled:
@@ -1495,6 +1498,9 @@ def tool_reconnect():
     return {"ok": True}
 
 
+# MCP protocol versions this server supports
+SUPPORTED_PROTOCOL_VERSIONS = ["2024-11-05", "2025-03-26"]
+
 TOOLS = {
     "mempalace_status": {
         "description": "Palace overview — total drawers, wing and room counts",
@@ -1950,6 +1956,7 @@ TOOLS = {
         "handler": tool_reconnect,
     },
 }
+
 
 def handle_request(request):
     if not isinstance(request, dict):
