@@ -1,9 +1,9 @@
 """Backend abstraction layer tests for MemPalace (RFC 001).
 
-Tests the registry, in-tree backends (chroma, qdrant, pgvector, sqlite_exact),
+Tests the registry, in-tree backends (Qdrant, pgvector, sqlite_exact),
 error classes, and value objects — all via unit tests with mocks.
 
-No real Qdrant/Ollama/chromadb server required.
+No real Qdrant/Ollama server required.
 
 Wing: openclaw | Topic: mempalace | Updated: 2026-06-28
 """
@@ -275,7 +275,7 @@ class TestBackendErrors:
 
     def test_backend_mismatch_error(self):
         """BackendMismatchError for backend/schema mismatches."""
-        err = BackendMismatchError("chroma artifact found but pgvector selected")
+        err = BackendMismatchError("Qdrant artifact found but pgvector selected")
         assert isinstance(err, BackendError)
 
     def test_dimension_mismatch_error(self):
@@ -438,7 +438,7 @@ class TestPalaceRef:
 
 
 # ---------------------------------------------------------------------------
-# ChromaBackend tests (mocked chromadb)
+# Backend tests (mocked)
 # ---------------------------------------------------------------------------
 
 

@@ -154,10 +154,23 @@ def _build_ef_class():
     """
     from functools import cached_property
 
-    from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
+    # Deferred import: chromadb was removed from pyproject.toml, but
+    # ONNXMiniLM_L6_V2 is needed when it IS installed (transitive dep).
+    # Gracefully fall back to object so embeddinggemma still works.
+    try:
+        from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2 as _ONNXBase
+    except ImportError:
+        _ONNXBase = object
 
-    class _MempalaceONNX(ONNXMiniLM_L6_V2):
+    class _MempalaceONNX(_ONNXBase):  # type: ignore[misc] — dynamic base resolved at runtime
         def __init__(self, preferred_providers=None, intra_op_num_threads=0):
+            if _ONNXBase is object:
+                raise ImportError(
+                    "chromadb is not installed. The default MiniLM embedding model "
+                    "requires chromadb. Install it with: pip install chromadb, or "
+                    "switch to the embeddinggemma model (supports 100+ languages) "
+                    "via MEMPALACE_EMBEDDING_MODEL=embeddinggemma."
+                )
             super().__init__(preferred_providers=preferred_providers)
             self._intra_op_num_threads = intra_op_num_threads
 

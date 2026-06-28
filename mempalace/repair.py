@@ -348,7 +348,7 @@ def repair_max_seq_id(
     assume_yes: bool = False,
 ) -> dict:
     """No-op: max_seq_id is a backend-only concept.
-    
+
     Preserved so cli.py's ``cmd_repair --mode max-seq-id`` doesn't
     break.
     """
@@ -398,7 +398,7 @@ def rebuild_from_sqlite(
     batch_size: int = 1000,
 ) -> dict[str, int]:
     """No-op: Qdrant does not store data in a SQLite file.
-    
+
     Preserved so cli.py's ``cmd_repair --mode from-sqlite`` path
     doesn't break. Qdrant collections are backed up via the snapshot
     API instead.
