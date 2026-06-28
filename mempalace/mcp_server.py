@@ -65,6 +65,7 @@ from .version import __version__  # noqa: E402
 # Qdrant mode  # noqa: E402
 
 from .backends.qdrant import QdrantBackend, QdrantCollection  # noqa: E402
+from . import palace as _palace  # noqa: E402
 from .query_sanitizer import sanitize_query  # noqa: E402
 from .searcher import search_memories, _hybrid_rank  # noqa: E402
 from .palace_graph import (  # noqa: E402
@@ -195,19 +196,26 @@ def _refresh_vector_disabled_flag() -> None:
 
 
 def _search_conversation(query: str, limit: int = 5, max_distance: float = 1.5) -> list:
-    """Search conversation collection (meilin_conversation) by direct Qdrant query.
-
-    Steps:
-    1. Get embedding vector from Ollama for the query
-    2. Query Qdrant meilin_conversation collection with the vector
-    3. Map raw conversation payload -> mempalace drawer schema
-    4. Return normalized results
+    """Search conversation collection using the resolved backend.
+    
+    Uses the same backend resolution as other tools (MEMPALACE_BACKEND env var,
+    config, or default Chroma). Falls back gracefully if the conversation
+    collection doesn't exist in the selected backend.
     """
     try:
         backend = _get_client()
-        if not isinstance(backend, QdrantBackend):
+        from .backends.base import PalaceRef
+        palace_ref = PalaceRef(
+            id=_config.palace_path or "default",
+            local_path=_config.palace_path,
+        )
+        col = backend.get_collection(
+            palace=palace_ref,
+            collection_name=_CONVERSATION_COLLECTION,
+            create=False,
+        )
+        if col is None:
             return []
-        col = QdrantCollection(backend, _CONVERSATION_COLLECTION)
     except Exception as exc:
         logger.debug("Conversation search unavailable: %s", exc)
         return []
@@ -333,12 +341,22 @@ def _wal_log(operation: str, params: dict, result: dict = None):
 
 
 def _get_client():
-    """Return the Qdrant backend instance (cached)."""
+    """Return the backend instance (cached), resolved via palace.resolve_backend_name().
+
+    Respects MEMPALACE_BACKEND env var, config file, explicit --backend flag, and
+    detected palace artifacts — not hardcoded to any single backend.
+    """
     global _client_cache, _collection_cache, _metadata_cache, _metadata_cache_time
 
     if _client_cache is None:
         _refresh_vector_disabled_flag()
-        _client_cache = QdrantBackend()
+        palace_path = _config.palace_path or ""
+        try:
+            _client_cache = _palace.get_backend_for_palace(palace_path)
+        except Exception:
+            logger.debug("Backend resolution failed, falling back to Chroma")
+            from .backends import get_backend
+            _client_cache = get_backend("chroma")
         _collection_cache = None
         _metadata_cache = None
         _metadata_cache_time = 0
@@ -346,25 +364,29 @@ def _get_client():
 
 
 def _get_collection(create=False):
-    """Return the Qdrant collection, caching between calls."""
+    """Return the collection via palace.get_collection(), caching between calls.
+
+    Delegates to palace.py's resolution chain (explicit flag → config → env var
+    → detected artifacts → default Chroma) instead of hardcoding any backend.
+    """
     global _client_cache, _collection_cache, _metadata_cache, _metadata_cache_time
 
     if _collection_cache is not None:
         return _collection_cache
 
+    palace_path = _config.palace_path
+    if not palace_path:
+        return None
+
     for attempt in range(2):
         try:
-            backend = _get_client()
-            from .backends.base import PalaceRef
-
-            palace_ref = PalaceRef(
-                id=_config.palace_path or "default", local_path=_config.palace_path
-            )
-            _collection_cache = backend.get_collection(
-                palace=palace_ref,
+            _collection_cache = _palace.get_collection(
+                palace_path,
                 collection_name=_config.collection_name,
                 create=create,
             )
+            # Sync client cache so _get_client() shares the same instance
+            _client_cache = _palace.get_backend_for_palace(palace_path)
             break
         except Exception as exc:
             logger.error("_get_collection attempt %d/2 failed", attempt + 1, exc_info=True)
