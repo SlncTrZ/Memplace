@@ -8,8 +8,6 @@ import json
 import asyncio
 import os
 import uuid
-import urllib.request
-import urllib.error
 from pathlib import Path
 from fastapi import FastAPI, Request, Query
 from fastapi.responses import JSONResponse, FileResponse
@@ -17,6 +15,8 @@ from sse_starlette.sse import EventSourceResponse
 from typing import Dict, Any, Optional
 import logging
 import itertools
+from mempalace.backends import get_backend
+from qdrant_client.models import Filter as QdrantFilter, FieldCondition, MatchValue
 
 _mcp_request_id = itertools.count(start=1)
 
@@ -27,7 +27,6 @@ app = FastAPI(title="MemPalace MCP HTTP Server (SSE)")
 
 LANDING_DIR = Path(__file__).parent / "landing"
 QDRANT_URL = os.environ.get("QDRANT_URL", "http://qdrant:6333")
-QDRANT_API_KEY = os.environ.get("QDRANT_API_KEY", "")
 mcp_process: Optional[subprocess.Popen] = None
 
 # MCP SSE state
@@ -37,56 +36,11 @@ _sse_lock = asyncio.Lock()
 _process_lock = asyncio.Lock()
 _stdout_reader_task: Optional[asyncio.Task] = None
 
-WING_COLLECTIONS = {
-    "tcdserver": "meilin_tcdserver",
-    "code_chronicles": "meilin_code_chronicles",
-    "openclaw": "meilin_openclaw",
-    "robotics": "meilin_robotics",
-    "omniscience_wiki": "meilin_omniscience_wiki",
-    "conversation": "meilin_conversation",
-}
 
 
-def qdrant_headers() -> dict:
-    headers = {"Content-Type": "application/json"}
-    if QDRANT_API_KEY:
-        headers["api-key"] = QDRANT_API_KEY
-    return headers
-
-
-def qdrant_scroll(collection: str, limit: int = 100, offset_id=None) -> tuple:
-    """Scroll Qdrant collection points, optionally from an offset."""
-    url = f"{QDRANT_URL}/collections/{collection}/points/scroll"
-    body = {"limit": limit, "with_payload": ["entity_name", "topic", "content", "importance", "version"], "with_vector": False}
-    if offset_id:
-        body["offset"] = offset_id
-    payload = json.dumps(body).encode()
-    try:
-        req = urllib.request.Request(url, data=payload, headers=qdrant_headers())
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read())
-            result = data.get("result", {})
-            return result.get("points", []), result.get("next_offset")
-    except Exception as e:
-        logger.error(f"Qdrant scroll error: {e}")
-        return [], None
-
-
-def query_qdrant_entity(collection: str, entity_name: str, limit: int = 10) -> list:
-    """Query Qdrant scroll API for points matching entity_name."""
-    url = f"{QDRANT_URL}/collections/{collection}/points/scroll"
-    payload = json.dumps({
-        "filter": {"must": [{"key": "entity_name", "match": {"value": entity_name}}]},
-        "limit": limit, "with_payload": True, "with_vector": False
-    }).encode()
-    try:
-        req = urllib.request.Request(url, data=payload, headers=qdrant_headers())
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read())
-            return data.get("result", {}).get("points", [])
-    except Exception as e:
-        logger.error(f"Qdrant query error: {e}")
-        return []
+def _get_qdrant_backend():
+    """Lazy-init QdrantBackend from mempalace.backends registry."""
+    return get_backend("qdrant")  # noqa: F821
 
 
 async def _mcp_stdout_reader():
@@ -375,16 +329,28 @@ async def health():
 
 @app.get("/api/graph-data")
 async def get_graph_data():
-    """Build graph data structure from all 6 Qdrant wings."""
+    """Build graph data structure from all Qdrant wings discovered dynamically."""
+    backend = _get_qdrant_backend()
+    client = backend._lazy_client
+    collections_info = client.get_collections()
+
     result_wings = []
     result_entities = []
-    for wing_id, collection in WING_COLLECTIONS.items():
+    for col_info in collections_info.collections:
+        name = col_info.name
+        if not name.startswith("meilin_"):
+            continue
+        wing_id = name[len("meilin_"):]
         try:
-            pts, _ = qdrant_scroll(collection, limit=80)
+            records, _ = client.scroll(
+                collection_name=name, limit=80,
+                with_payload=["entity_name", "topic", "content", "importance", "version"],
+                with_vector=False,
+            )
             topics_map = {}
             entities_list = []
-            for p in pts:
-                pl = p.get("payload", {})
+            for p in records:
+                pl = p.payload or {}
                 en = pl.get("entity_name", "") or ""
                 tp = pl.get("topic", "general") or "general"
                 if en and en not in [e.get("name") for e in entities_list]:
@@ -394,12 +360,12 @@ async def get_graph_data():
                 if en and en not in topics_map[tp]:
                     topics_map[tp].append(en)
             result_wings.append({
-                "id": wing_id, "points": len(pts),
+                "id": wing_id, "points": len(records),
                 "topics": list(topics_map.keys())
             })
             result_entities.extend(entities_list)
         except Exception as e:
-            logger.error(f"Error scrolling {collection}: {e}")
+            logger.error(f"Error scrolling {name}: {e}")
             result_wings.append({"id": wing_id, "points": 0, "topics": []})
     return {"wings": result_wings, "entities": result_entities}
 
@@ -407,16 +373,26 @@ async def get_graph_data():
 @app.get("/api/entity")
 async def get_entity(wing: str = Query(...), name: str = Query(...)):
     """Query actual Qdrant points by wing + entity name."""
-    collection = WING_COLLECTIONS.get(wing)
-    if not collection:
-        return JSONResponse(status_code=400, content={"error": f"Unknown wing: {wing}"})
-    points = query_qdrant_entity(collection, name, limit=10)
+    collection_name = f"meilin_{wing}"
+    backend = _get_qdrant_backend()
+    client = backend._lazy_client
+    try:
+        records, _ = client.scroll(
+            collection_name=collection_name, limit=10,
+            with_payload=True, with_vector=False,
+            scroll_filter=QdrantFilter(
+                must=[FieldCondition(key="entity_name", match=MatchValue(value=name))]
+            ),
+        )
+    except Exception as e:
+        logger.error(f"Qdrant scroll error for {collection_name}: {e}")
+        return JSONResponse(status_code=404, content={"error": f"Collection not found: {collection_name}"})
     results = []
-    for p in points:
-        payload = p.get("payload", {})
+    for p in records:
+        payload = p.payload or {}
         results.append({
-            "id": p.get("id"),
-            "score": p.get("score"),
+            "id": str(p.id),
+            "score": getattr(p, "score", None),
             "version": payload.get("version", 1),
             "content": payload.get("content", ""),
             "topic": payload.get("topic", ""),
