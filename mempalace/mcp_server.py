@@ -193,6 +193,95 @@ def _refresh_vector_disabled_flag() -> None:
     _vector_disabled_reason = ""
     _vector_capacity_status = {}
 
+def _search_conversation(query: str, limit: int = 5, max_distance: float = 1.5) -> list:
+    """Search conversation collection (meilin_conversation) by direct Qdrant query.
+    
+    Steps:
+    1. Get embedding vector from Ollama for the query
+    2. Query Qdrant meilin_conversation collection with the vector
+    3. Map raw conversation payload -> mempalace drawer schema
+    4. Return normalized results
+    """
+    try:
+        backend = _get_client()
+        if not isinstance(backend, QdrantBackend):
+            return []
+        col = QdrantCollection(backend, _CONVERSATION_COLLECTION)
+    except Exception as exc:
+        logger.debug("Conversation search unavailable: %s", exc)
+        return []
+
+    try:
+        qr = col.query(
+            query_texts=[query],
+            n_results=limit * 2,
+            include=["documents", "metadatas", "distances"],
+        )
+    except Exception as exc:
+        logger.debug("Conversation query failed: %s", exc)
+        return []
+
+    docs = qr.documents[0] if qr.documents else []
+    metas = qr.metadatas[0] if qr.metadatas else []
+    dists = qr.distances[0] if qr.distances else []
+
+    mapped = []
+    for doc, meta, dist in zip(docs, metas, dists):
+        if max_distance > 0.0 and dist > max_distance:
+            continue
+        
+        # Map conversation payload -> mempalace drawer schema
+        raw_session = meta.get("session_id") or ""
+        raw_date = meta.get("date") or ""
+        raw_ts = meta.get("timestamp") or ""
+        
+        # Room: session_id -> date -> default
+        room_val = str(raw_session)[:48] if raw_session else (raw_date or "pi_conversation")
+        
+        # Source file: date-based or timestamp-based
+        if raw_date:
+            src_file = "chat_%s.md" % raw_date
+        elif raw_ts:
+            ts_str = str(raw_ts)[:10].replace("T", "_").replace(":", "-")
+            src_file = "chat_%s.md" % ts_str
+        else:
+            src_file = "pi_conversation.md"
+        
+        # Created_at: timestamp -> date -> unknown
+        created_at = raw_ts or raw_date or "unknown"
+        
+        # Display text: content field -> summary -> raw doc
+        display_text = meta.get("content") or meta.get("summary") or doc or ""
+        
+        mapped_meta = {
+            "wing": "conversation",
+            "room": room_val,
+            "source_file": src_file,
+            "filed_at": created_at,
+            "_summary": meta.get("summary", "")[:120],
+            "_message_count": meta.get("message_count", 0),
+        }
+        
+        entry = {
+            "text": display_text,
+            "wing": "conversation",
+            "room": mapped_meta["room"],
+            "source_file": mapped_meta["source_file"],
+            "created_at": mapped_meta["filed_at"],
+            "similarity": round(max(0.0, 1.0 - dist), 3),
+            "distance": round(dist, 4),
+            "effective_distance": round(dist, 4),
+            "closet_boost": 0.0,
+            "matched_via": "conversation",
+            "bm25_score": 0.0,
+            "_collection": _CONVERSATION_COLLECTION,
+        }
+        mapped.append(entry)
+    
+    return mapped
+
+
+
 
 # ==================== WRITE-AHEAD LOG ====================
 # Every write operation is logged to a JSONL file before execution.
@@ -513,13 +602,15 @@ def tool_search(
         sanitized = sanitize_query(query)
         _refresh_vector_disabled_flag()
 
-        # Parallel search across multiple collections
-        collections_to_search = [_config.collection_name]
-        if not wing and not room:
-            collections_to_search.append(_CONVERSATION_COLLECTION)
+        # Dual search: drawers (search_memories) + conversation (direct Qdrant)
+        merged = []
+        seen = set()
+        total_before = 0
+        searched_collections = [_config.collection_name]
 
-        def _run_search(coll: str) -> dict:
-            return search_memories(
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            fut_drawers = executor.submit(
+                search_memories,
                 sanitized["clean_query"],
                 palace_path=_config.palace_path,
                 wing=wing,
@@ -527,41 +618,52 @@ def tool_search(
                 n_results=limit,
                 max_distance=dist,
                 vector_disabled=_vector_disabled,
-                collection_name=coll,
+                collection_name=_config.collection_name,
             )
 
-        results_list = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            fut_map = {executor.submit(_run_search, c): c for c in collections_to_search}
-            for f in concurrent.futures.as_completed(fut_map):
+            fut_conv = None
+            if not wing and not room:
+                searched_collections.append(_CONVERSATION_COLLECTION)
+                fut_conv = executor.submit(
+                    _search_conversation,
+                    sanitized["clean_query"],
+                    limit,
+                    dist,
+                )
+
+            # Process drawers result
+            try:
+                dr = fut_drawers.result()
+                if dr and "results" in dr:
+                    for hit in dr["results"]:
+                        hit["_collection"] = _config.collection_name
+                        merged.append(hit)
+                    total_before += dr.get("total_before_filter", 0)
+            except Exception as exc:
+                logger.error("Drawers search failed: %s", exc)
+
+            # Process conversation result (direct Qdrant query + metadata mapping)
+            if fut_conv is not None:
                 try:
-                    r = f.result()
-                    if r and "results" in r:
-                        r["_source_collection"] = fut_map[f]
-                        results_list.append(r)
+                    conv_hits = fut_conv.result()
+                    for hit in conv_hits:
+                        key = (hit.get("source_file", "?"), hit.get("text", "")[:80])
+                        if key not in seen:
+                            seen.add(key)
+                            merged.append(hit)
+                            total_before += 1
                 except Exception as exc:
-                    logger.error("Search failed for %s: %s", fut_map[f], exc)
+                    logger.error("Conversation search failed: %s", exc)
 
-        # Merge and dedup results across collections
-        merged = []
-        seen = set()
-        for r in results_list:
-            for hit in r.get("results", []):
-                key = (hit.get("source_file", "?"), hit.get("text", "")[:80])
-                if key not in seen:
-                    seen.add(key)
-                    hit["_collection"] = r.get("_source_collection", "")
-                    merged.append(hit)
-
+        # Re-rank merged results with hybrid BM25
         merged = _hybrid_rank(merged, sanitized["clean_query"])
-        total_all = sum(r.get("total_before_filter", 0) for r in results_list)
 
         result = {
             "query": query,
             "filters": {"wing": wing, "room": room},
-            "total_before_filter": total_all,
+            "total_before_filter": total_before,
             "results": merged[:limit],
-            "searched_collections": collections_to_search,
+            "searched_collections": searched_collections,
         }
 
         if _vector_disabled:
