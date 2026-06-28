@@ -9,7 +9,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 
 API_KEY = os.environ.get("QDRANT_API_KEY", "")
 HEADERS = {"api-key": API_KEY} if API_KEY else {"Content-Type": "application/json"}
-BASE = os.environ.get("QDRANT_URL", "http://192.168.1.227:6333")
+BASE = os.environ.get("QDRANT_URL", "http://localhost:6333")
 
 collections = [
     "meilin_tcdserver", "meilin_openclaw", "meilin_robotics",

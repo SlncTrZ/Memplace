@@ -116,9 +116,9 @@ Before creating PR or pushing to public GitHub:
 
 ```bash
 # Required for operation
-QDRANT_URL=http://192.168.1.227:6333
-QDRANT_API_KEY=<your_real_key>  # ⚠️ SENSITIVE
-OLLAMA_URL=http://localhost:11434
+QDRANT_URL=http://localhost:6333        # Replace with your Qdrant server
+QDRANT_API_KEY=<your_real_key>         # ⚠️ SENSITIVE
+OLLAMA_URL=http://localhost:11434       # Replace with your Ollama
 EMBED_MODEL=nomic-embed-text:latest
 
 # Optional: Custom wings

@@ -6,7 +6,7 @@ H = {"Content-Type": "application/json"}
 if API_KEY:
     H["api-key"] = API_KEY
 
-QDRANT_URL = os.environ.get("QDRANT_URL", "http://192.168.1.227:6333")
+QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333")
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 
 # Lay 1 point
