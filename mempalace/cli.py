@@ -89,8 +89,7 @@ def _maintenance_requires_chroma(palace_path: str, command_name: str) -> bool:
     except Exception as exc:  # noqa: BLE001 - user-facing guard before maintenance imports
         print(f"\n  {command_name} cannot resolve the palace backend: {exc}", file=sys.stderr)
         return False
-    if backend_name == "chroma":
-        return True
+    # ChromaDB backend removed — all maintenance commands are no-ops
     print(
         f"\n  {command_name} is Chroma-only in this release (selected backend: {backend_name}).",
         file=sys.stderr,
@@ -1079,24 +1078,11 @@ def cmd_repair(args):
     )
     if not _maintenance_requires_chroma(palace_path, "repair"):
         raise SystemExit(2)
-
+    # ChromaDB backend removed — repair is a no-op
+    print("  ChromaDB backend has been removed; no repair needed.")
+    return
     import shutil
-    from .backends.chroma import ChromaBackend
     from .migrate import confirm_destructive_action, contains_palace_database
-    from .repair import (
-        RebuildCollectionError,
-        TruncationDetected,
-        _close_chroma_handles,
-        _extract_drawers,
-        _post_rebuild_cleanup,
-        _rebuild_collection_via_temp,
-        check_extraction_safety,
-        index_read_recovery_guidance,
-        maybe_autoheal_fts5_index,
-        maybe_repair_poisoned_max_seq_id_before_rebuild,
-        print_sqlite_integrity_abort,
-        sqlite_integrity_errors,
-    )
 
     if getattr(args, "repair_action", None) == "rebuild-index":
         args.mode = "from-sqlite"

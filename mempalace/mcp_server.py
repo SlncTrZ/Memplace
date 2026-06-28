@@ -172,7 +172,7 @@ def _is_transient_index_error(result) -> bool:
     return False
 
 
-def _force_chroma_cache_reset() -> None:
+def _force_cache_reset() -> None:
     """Force re-connect on next tool call."""
     global _client_cache, _collection_cache, _metadata_cache, _metadata_cache_time
     _client_cache = None
@@ -199,7 +199,7 @@ def _search_conversation(query: str, limit: int = 5, max_distance: float = 1.5) 
     """Search conversation collection using the resolved backend.
 
     Uses the same backend resolution as other tools (MEMPALACE_BACKEND env var,
-    config, or default Chroma). Falls back gracefully if the conversation
+    config, or default Qdrant). Falls back gracefully if the conversation
     collection doesn't exist in the selected backend.
     """
     try:
@@ -355,10 +355,10 @@ def _get_client():
         try:
             _client_cache = _palace.get_backend_for_palace(palace_path)
         except Exception:
-            logger.debug("Backend resolution failed, falling back to Chroma")
+            logger.debug("Backend resolution failed, falling back to Qdrant")
             from .backends import get_backend
 
-            _client_cache = get_backend("chroma")
+            _client_cache = get_backend("qdrant")
         _collection_cache = None
         _metadata_cache = None
         _metadata_cache_time = 0
@@ -369,7 +369,7 @@ def _get_collection(create=False):
     """Return the collection via palace.get_collection(), caching between calls.
 
     Delegates to palace.py's resolution chain (explicit flag → config → env var
-    → detected artifacts → default Chroma) instead of hardcoding any backend.
+    → detected artifacts → default Qdrant) instead of hardcoding any backend.
     """
     global _client_cache, _collection_cache, _metadata_cache, _metadata_cache_time
 

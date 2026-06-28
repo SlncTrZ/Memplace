@@ -113,13 +113,13 @@ class TestBackendRegistry:
         """available_backends() returns the four in-tree backends sorted."""
         reset_backends()
         names = available_backends()
-        assert names == ["chroma", "pgvector", "qdrant", "sqlite_exact"]
+        assert names == ["pgvector", "qdrant", "sqlite_exact"]
 
     def test_get_backend_returns_singleton(self):
-        """get_backend('chroma') returns a cached singleton instance."""
+        """get_backend('qdrant') returns a cached singleton instance."""
         reset_backends()
-        inst1 = get_backend("chroma")
-        inst2 = get_backend("chroma")
+        inst1 = get_backend("qdrant")
+        inst2 = get_backend("qdrant")
         assert inst1 is inst2
 
     def test_get_backend_unknown_raises_keyerror(self):
@@ -149,81 +149,80 @@ class TestBackendRegistry:
         """Explicit register() wins over built-in entry point."""
         reset_backends()
 
-        class OverrideChroma(BaseBackend):
-            name = "chroma_override"
-
+        class OverrideQdrant(BaseBackend):
+            name = "qdrant_override"
+    
             def get_collection(self, *args, **kwargs):
                 return _ConcreteCollection()
-
-        register("chroma", OverrideChroma)
-        inst = get_backend("chroma")
-        assert isinstance(inst, OverrideChroma)
-
-        # Restore original chroma backend so subsequent tests are not poisoned.
-        from mempalace.backends.chroma import ChromaBackend
-
-        register("chroma", ChromaBackend)
+    
+        register("qdrant", OverrideQdrant)
+        inst = get_backend("qdrant")
+        assert isinstance(inst, OverrideQdrant)
+    
+        # Restore original backend so subsequent tests are not poisoned.
+        from mempalace.backends.qdrant import QdrantBackend
+        register("qdrant", QdrantBackend)
         reset_backends()
 
     def test_resolve_backend_picks_explicit_first(self):
         """resolve_backend_for_palace picks explicit > config > env > detect > default."""
         result = resolve_backend_for_palace(
             explicit="qdrant",
-            config_value="chroma",
+            config_value="qdrant",
             env_value="pgvector",
             palace_path="/tmp/fake",
             default="sqlite_exact",
         )
         assert result == "qdrant"
 
-    def test_resolve_backend_picks_config_when_no_explicit(self):
-        """resolve_backend_for_palace falls back to config value."""
-        result = resolve_backend_for_palace(
+        def test_resolve_backend_picks_config_when_no_explicit(self):
+            """resolve_backend_for_palace falls back to config value."""
+            result = resolve_backend_for_palace(
             explicit=None,
             config_value="pgvector",
             env_value="qdrant",
             palace_path="/tmp/fake",
-            default="chroma",
+            default="qdrant",
         )
-        assert result == "pgvector"
+            assert result == "pgvector"
 
-    def test_resolve_backend_picks_env_when_no_explicit_or_config(self):
-        """resolve_backend_for_palace falls back to env value."""
-        result = resolve_backend_for_palace(
+        def test_resolve_backend_picks_env_when_no_explicit_or_config(self):
+            """resolve_backend_for_palace falls back to env value."""
+            result = resolve_backend_for_palace(
             explicit=None,
             config_value=None,
             env_value="sqlite_exact",
             palace_path=None,
-            default="chroma",
+            default="qdrant",
         )
-        assert result == "sqlite_exact"
+            assert result == "sqlite_exact"
 
-    def test_resolve_backend_default_when_nothing_set(self):
-        """resolve_backend_for_palace returns default when no prior rule matched."""
-        result = resolve_backend_for_palace(
+        def test_resolve_backend_default_when_nothing_set(self):
+            """resolve_backend_for_palace returns default when no prior rule matched."""
+            result = resolve_backend_for_palace(
             explicit=None,
             config_value=None,
             env_value=None,
             palace_path=None,
-            default="chroma",
+            default="qdrant",
         )
-        assert result == "chroma"
+            assert result == "qdrant"
 
-    def test_get_backend_class(self):
-        """get_backend_class returns the class, not an instance."""
-        from mempalace.backends.chroma import ChromaBackend
+        def test_get_backend_class(self):
+            """get_backend_class returns the class, not an instance."""
+            from mempalace.backends.qdrant import QdrantBackend
 
-        reset_backends()
-        cls = get_backend_class("chroma")
-        assert cls is ChromaBackend
+            reset_backends()
+            cls = get_backend_class("qdrant")
+            assert cls is QdrantBackend
 
-    def test_reset_backends_closes_instances(self):
-        """reset_backends closes all cached backend instances."""
-        reset_backends()
-        inst = get_backend("chroma")
-        assert not getattr(inst, "_closed", False)
-        reset_backends()
-        assert getattr(inst, "_closed", True)
+        def test_reset_backends_closes_instances(self):
+            """reset_backends closes all cached backend instances."""
+            reset_backends()
+            inst = get_backend("qdrant")
+            assert not getattr(inst, "_closed", False)
+            reset_backends()
+            assert getattr(inst, "_closed", True)
 
 
 # ---------------------------------------------------------------------------
@@ -441,214 +440,6 @@ class TestPalaceRef:
 # ChromaBackend tests (mocked chromadb)
 # ---------------------------------------------------------------------------
 
-
-class TestChromaBackend:
-    """Test ChromaBackend with a fully mocked chromadb client."""
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_get_backend(self, mock_chromadb):
-        """get_backend('chroma') returns a ChromaBackend instance."""
-        reset_backends()
-        backend = get_backend("chroma")
-        from mempalace.backends.chroma import ChromaBackend
-
-        assert isinstance(backend, ChromaBackend)
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_backend_name(self, mock_chromadb):
-        """ChromaBackend.name is 'chroma'."""
-        from mempalace.backends.chroma import ChromaBackend
-
-        assert ChromaBackend.name == "chroma"
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_backend_capabilities(self, mock_chromadb):
-        """ChromaBackend.capabilities includes expected tokens."""
-        from mempalace.backends.chroma import ChromaBackend
-
-        caps = ChromaBackend.capabilities
-        assert "supports_embeddings_in" in caps
-        assert "supports_metadata_filters" in caps
-        assert "supports_lexical_search" in caps
-        assert "local_mode" in caps
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_health_closed(self, mock_chromadb):
-        """ChromaBackend.health() is unhealthy when closed."""
-        from mempalace.backends.chroma import ChromaBackend
-
-        backend = ChromaBackend()
-        backend.close()
-        status = backend.health()
-        assert not status.ok
-        assert "closed" in status.detail
-
-    @patch("mempalace.backends.chroma.os.path.isdir")
-    @patch("mempalace.backends.chroma.os.path.isfile")
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_get_collection_no_create_missing(self, mock_chromadb, mock_isfile, mock_isdir):
-        """get_collection(create=False) on missing palace raises PalaceNotFoundError."""
-        from mempalace.backends.chroma import ChromaBackend
-
-        mock_isdir.return_value = False
-        backend = ChromaBackend()
-
-        with pytest.raises(PalaceNotFoundError):
-            backend.get_collection("/nonexistent", "test_coll", create=False)
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_collection_name_consistent(self, mock_chromadb):
-        """ChromaCollection wraps the underlying chromadb collection."""
-        from mempalace.backends.chroma import ChromaCollection
-
-        mock_coll = MagicMock()
-        mock_coll.name = "test_collection"
-        collection = ChromaCollection(mock_coll)
-        assert collection._collection is mock_coll
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_collection_count(self, mock_chromadb):
-        """ChromaCollection.count() delegates to the underlying collection."""
-        from mempalace.backends.chroma import ChromaCollection
-
-        mock_coll = MagicMock()
-        mock_coll.count.return_value = 42
-        collection = ChromaCollection(mock_coll)
-        assert collection.count() == 42
-        mock_coll.count.assert_called_once()
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_collection_add(self, mock_chromadb):
-        """ChromaCollection.add() delegates to the underlying collection."""
-        from mempalace.backends.chroma import ChromaCollection
-
-        mock_coll = MagicMock()
-        collection = ChromaCollection(mock_coll)
-
-        collection.add(
-            documents=["hello world"],
-            ids=["doc-1"],
-            metadatas=[{"wing": "test"}],
-        )
-        mock_coll.add.assert_called_once()
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_collection_upsert(self, mock_chromadb):
-        """ChromaCollection.upsert() delegates to the underlying collection."""
-        from mempalace.backends.chroma import ChromaCollection
-
-        mock_coll = MagicMock()
-        collection = ChromaCollection(mock_coll)
-
-        collection.upsert(
-            documents=["updated content"],
-            ids=["doc-1"],
-        )
-        mock_coll.upsert.assert_called_once()
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_collection_delete_by_ids(self, mock_chromadb):
-        """ChromaCollection.delete() with ids delegates to underlying collection."""
-        from mempalace.backends.chroma import ChromaCollection
-
-        mock_coll = MagicMock()
-        collection = ChromaCollection(mock_coll)
-
-        collection.delete(ids=["doc-1", "doc-2"])
-        mock_coll.delete.assert_called_once_with(ids=["doc-1", "doc-2"])
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_collection_query(self, mock_chromadb):
-        """ChromaCollection.query() returns typed QueryResult."""
-        from mempalace.backends.chroma import ChromaCollection
-
-        mock_coll = MagicMock()
-        mock_coll.query.return_value = {
-            "ids": [["a", "b"]],
-            "documents": [["doc1", "doc2"]],
-            "metadatas": [[{"k": "v"}, {"k2": "v2"}]],
-            "distances": [[0.1, 0.2]],
-        }
-        collection = ChromaCollection(mock_coll)
-
-        result = collection.query(query_texts=["test query"], n_results=2)
-        assert isinstance(result, QueryResult)
-        assert result.ids == [["a", "b"]]
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_collection_get_by_ids(self, mock_chromadb):
-        """ChromaCollection.get() with ids returns typed GetResult."""
-        from mempalace.backends.chroma import ChromaCollection
-
-        mock_coll = MagicMock()
-        mock_coll.get.return_value = {
-            "ids": ["a"],
-            "documents": ["doc1"],
-            "metadatas": [{"k": "v"}],
-        }
-        collection = ChromaCollection(mock_coll)
-
-        result = collection.get(ids=["a"])
-        assert isinstance(result, GetResult)
-        assert result.ids == ["a"]
-        assert result.documents == ["doc1"]
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_chroma_close_sets_flag(self, mock_chromadb):
-        """ChromaBackend.close() sets _closed flag and clears clients."""
-        from mempalace.backends.chroma import ChromaBackend
-
-        backend = ChromaBackend()
-        assert not backend._closed
-        backend.close()
-        assert backend._closed
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_backend_version(self, mock_chromadb):
-        """backend_version() returns the chromadb version string."""
-        from mempalace.backends.chroma import ChromaBackend
-
-        mock_chromadb.__version__ = "1.5.12"
-        assert ChromaBackend.backend_version() == "1.5.12"
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_collection_sanitize_empty_metadata(self, mock_chromadb):
-        """ChromaCollection sanitizes empty metadata entries."""
-        from mempalace.backends.chroma import ChromaCollection
-
-        mock_coll = MagicMock()
-        collection = ChromaCollection(mock_coll)
-
-        sanitized = collection._sanitize_metadatas_for_chromadb([None, {}, {"wing": "test"}])
-        assert sanitized is not None
-        assert sanitized[0] == {"_repaired_empty_meta": True}
-        assert sanitized[1] == {"_repaired_empty_meta": True}
-        assert sanitized[2] == {"wing": "test"}
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_collection_distance_metric_default(self, mock_chromadb):
-        """ChromaCollection reports distance_metric from hnsw:space."""
-        from mempalace.backends.chroma import ChromaCollection
-
-        mock_coll = MagicMock()
-        mock_coll.metadata = {"hnsw:space": "cosine"}
-        collection = ChromaCollection(mock_coll)
-        assert collection.distance_metric == "cosine"
-
-    @patch("mempalace.backends.chroma.chromadb")
-    def test_collection_distance_metric_fallback_l2(self, mock_chromadb):
-        """ChromaCollection falls back to 'l2' when hnsw:space is absent."""
-        from mempalace.backends.chroma import ChromaCollection
-
-        mock_coll = MagicMock()
-        mock_coll.metadata = {}
-        collection = ChromaCollection(mock_coll)
-        assert collection.distance_metric == "l2"
-
-
-# ---------------------------------------------------------------------------
-# QdrantBackend tests (mocked qdrant_client)
-# ---------------------------------------------------------------------------
 
 
 class TestQdrantBackend:

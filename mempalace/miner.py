@@ -1994,9 +1994,8 @@ def status(palace_path: str):
     un-bootstrapped collection, or an unexpected schema); the fallback also
     emits the state-specific guidance for absent/empty palaces.
     """
-    from .backends.chroma import _sqlite_wing_room_counts
-
-    counts = _sqlite_wing_room_counts(palace_path, "mempalace_drawers")
+    # ChromaDB backend removed — wing/room counts unavailable via sqlite
+    counts = None
     if counts is not None:
         total, wing_rooms = counts
         _print_status(total, wing_rooms)

@@ -217,7 +217,9 @@ def collection_write_roundtrip_works(col) -> bool:
 
 def migrate(palace_path: str, dry_run: bool = False, confirm: bool = False):
     """Migrate a palace to the currently installed ChromaDB version."""
-    from .backends.chroma import ChromaBackend
+    # ChromaDB backend removed — migration is a no-op
+    print("  ChromaDB backend has been removed; no migration needed.")
+    return
 
     palace_path = os.path.abspath(os.path.expanduser(palace_path))
     db_path = os.path.join(palace_path, "chroma.sqlite3")

@@ -6,7 +6,7 @@ the embedder identity (``model_name`` / ``dimension``). It is deliberately
 "palace initialized" (reads raise ``CollectionNotInitializedError`` when the
 marker exists but the store doesn't), so recording identity at first empty open
 must not create one. The sidecar is unguarded, so a brand-new palace can record
-identity immediately — the same approach the chroma backend uses.
+identity immediately — the same approach other backends use.
 """
 
 import json

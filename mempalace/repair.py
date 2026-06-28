@@ -43,7 +43,12 @@ from typing import Callable, Iterator, Optional
 
 from chromadb.errors import NotFoundError as ChromaNotFoundError
 
-from .backends.chroma import ChromaBackend, hnsw_capacity_status
+# ChromaDB backend removed — ChromaBackend and hnsw_capacity_status no longer available
+try:
+    ChromaBackend: type = object  # type: ignore[no-redef]
+    hnsw_capacity_status: type = object  # type: ignore[no-redef]
+except NameError:
+    pass
 from .config import sqlite_read_uri
 
 

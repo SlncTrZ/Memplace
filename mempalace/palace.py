@@ -925,26 +925,9 @@ class MineValidationError(RuntimeError):
 def _validate_palace_fts5_after_mine(palace_path: str) -> None:
     """Raise MineValidationError if PRAGMA quick_check reports any error after a mine.
 
-    Reuses the same primitive that `cmd_repair` already runs as preflight so the
-    operator sees the same recovery banner regardless of which command surfaces
-    the bug.
+    The ChromaDB backend has been removed; this check is now a no-op.
     """
-    if resolve_backend_name(palace_path) != "chroma":
-        return
-
-    # Defer-import: keeps the repair module graph out of mine's hot import path.
-    from .repair import _close_chroma_handles, sqlite_integrity_errors
-
-    # Pass the live singleton so the writer's cached PersistentClient actually
-    # gets closed and WAL flushes before the read-only sqlite3 re-open.
-    # A transient ChromaBackend (the default) would only clear its own empty
-    # `_clients` dict and leave _DEFAULT_BACKEND's live handle in place,
-    # which on Windows keeps the sqlite file mmap'd.
-    _close_chroma_handles(palace_path, backend=_DEFAULT_BACKEND)
-
-    errors = sqlite_integrity_errors(palace_path)
-    if errors:
-        raise MineValidationError(palace_path, errors)
+    return
 
 
 # Per-thread record of palaces this thread already holds the lock for. Used by
