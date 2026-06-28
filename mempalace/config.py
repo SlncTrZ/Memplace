@@ -135,7 +135,7 @@ def _validate_iso_temporal_calendar(value: str) -> None:
     raise ValueError
 
 
-def sanitize_iso_temporal(value, field_name: str = "date"):
+def sanitize_iso_temporal(value: str | None, field_name: str = "date") -> str | None:
     """Validate an ISO-8601 date or canonical UTC datetime string.
 
     Accepts ``None`` and ``""`` as pass-through values.
@@ -172,7 +172,7 @@ def sanitize_iso_temporal(value, field_name: str = "date"):
     return value
 
 
-def sanitize_iso_date(value, field_name: str = "date"):
+def sanitize_iso_date(value: str | None, field_name: str = "date") -> str | None:
     """Backward-compatible wrapper for ISO temporal validation.
 
     Historically this accepted only full dates. It now also accepts canonical
@@ -310,7 +310,7 @@ class MempalaceConfig:
     Load order: env vars > config file > defaults.
     """
 
-    def __init__(self, config_dir=None):
+    def __init__(self, config_dir: str | Path | None = None) -> None:
         """Initialize config.
 
         Args:
@@ -332,7 +332,7 @@ class MempalaceConfig:
                 self._file_config = {}
 
     @property
-    def palace_path(self):
+    def palace_path(self) -> str:
         """Path to the memory palace data directory."""
         env_val = os.environ.get("MEMPALACE_PALACE_PATH") or os.environ.get("MEMPAL_PALACE_PATH")
         if env_val:
@@ -343,12 +343,12 @@ class MempalaceConfig:
         return os.path.expanduser(self._file_config.get("palace_path", DEFAULT_PALACE_PATH))
 
     @property
-    def tunnel_file(self):
+    def tunnel_file(self) -> str:
         """Path to the tunnel file, sibling of palace_path."""
         return os.path.join(os.path.dirname(self.palace_path), "tunnels.json")
 
     @property
-    def hallway_file(self):
+    def hallway_file(self) -> str:
         """Path to the hallway file, sibling of palace_path.
 
         Mirrors ``tunnel_file`` so within-wing hallway state is scoped to the
@@ -360,12 +360,12 @@ class MempalaceConfig:
         return os.path.join(os.path.dirname(self.palace_path), "hallways.json")
 
     @property
-    def collection_name(self):
+    def collection_name(self) -> str:
         """Palace collection name."""
         return self._file_config.get("collection_name", DEFAULT_COLLECTION_NAME)
 
     @property
-    def backend(self):
+    def backend(self) -> str:
         """Storage backend name.
 
         Read from ``config.json`` first, then ``MEMPALACE_BACKEND``, then
@@ -380,7 +380,7 @@ class MempalaceConfig:
         return DEFAULT_BACKEND
 
     @property
-    def qdrant_url(self):
+    def qdrant_url(self) -> str:
         """Qdrant endpoint for the default ``qdrant`` backend.
 
         Defaults to localhost so selecting Qdrant never silently sends memory
@@ -393,7 +393,7 @@ class MempalaceConfig:
         return str(self._file_config.get("qdrant_url", "http://localhost:6333")).strip()
 
     @property
-    def qdrant_api_key(self):
+    def qdrant_api_key(self) -> str | None:
         """API key for the opt-in ``qdrant`` backend, if configured."""
         env_val = os.environ.get("MEMPALACE_QDRANT_API_KEY")
         if env_val:
@@ -402,7 +402,7 @@ class MempalaceConfig:
         return str(value) if value else None
 
     @property
-    def qdrant_namespace(self):
+    def qdrant_namespace(self) -> str | None:
         """Optional Qdrant collection namespace/prefix."""
         env_val = os.environ.get("MEMPALACE_QDRANT_NAMESPACE")
         if env_val:
@@ -411,7 +411,7 @@ class MempalaceConfig:
         return str(value).strip() if value else None
 
     @property
-    def qdrant_timeout(self):
+    def qdrant_timeout(self) -> float:
         """Qdrant HTTP timeout in seconds."""
         env_val = os.environ.get("MEMPALACE_QDRANT_TIMEOUT")
         raw = env_val if env_val is not None else self._file_config.get("qdrant_timeout", 10.0)
@@ -422,7 +422,7 @@ class MempalaceConfig:
         return timeout if timeout > 0 else 10.0
 
     @property
-    def pgvector_dsn(self):
+    def pgvector_dsn(self) -> str:
         """Postgres DSN for the opt-in ``pgvector`` backend.
 
         Defaults to a localhost DSN so selecting pgvector never silently sends
@@ -437,7 +437,7 @@ class MempalaceConfig:
         ).strip()
 
     @property
-    def pgvector_namespace(self):
+    def pgvector_namespace(self) -> str | None:
         """Optional pgvector table namespace/prefix for multi-tenant isolation."""
         env_val = os.environ.get("MEMPALACE_PGVECTOR_NAMESPACE")
         if env_val:
@@ -446,7 +446,7 @@ class MempalaceConfig:
         return str(value).strip() if value else None
 
     @property
-    def people_map(self):
+    def people_map(self) -> dict:
         """Mapping of name variants to canonical names."""
         if self._people_map_file.exists():
             try:
@@ -457,7 +457,7 @@ class MempalaceConfig:
         return self._file_config.get("people_map", {})
 
     @property
-    def hooks_auto_save(self):
+    def hooks_auto_save(self) -> bool:
         """Whether the stop/precompact hooks should block for auto-save.
 
         When False, hooks pass through without blocking — equivalent to
@@ -470,12 +470,12 @@ class MempalaceConfig:
         return hooks.get("auto_save", True)
 
     @property
-    def topic_wings(self):
+    def topic_wings(self) -> list:
         """List of topic wing names."""
         return self._file_config.get("topic_wings", DEFAULT_TOPIC_WINGS)
 
     @property
-    def hall_keywords(self):
+    def hall_keywords(self) -> dict:
         """Mapping of hall names to keyword lists."""
         return self._file_config.get("hall_keywords", DEFAULT_HALL_KEYWORDS)
 
@@ -517,7 +517,7 @@ class MempalaceConfig:
         coerced = self._try_coerce_int(self._file_config.get(key, default), minimum)
         return default if coerced is None else coerced
 
-    def _validated_chunk_config(self):
+    def _validated_chunk_config(self) -> tuple[int, int, int]:
         """Return ``(chunk_size, chunk_overlap, min_chunk_size)`` post-validation.
 
         Enforces the invariants the miner relies on:
@@ -565,7 +565,7 @@ class MempalaceConfig:
         return self._validated_chunk_config()[2]
 
     @property
-    def min_chunk_size_explicit(self):
+    def min_chunk_size_explicit(self) -> int | None:
         """Validated ``min_chunk_size`` iff the user explicitly set it.
 
         Returns the coerced int when ``config.json`` defines a usable
@@ -587,7 +587,7 @@ class MempalaceConfig:
         return coerced
 
     @property
-    def entity_languages(self):
+    def entity_languages(self) -> list:
         """Languages whose entity-detection patterns should be applied.
 
         Reads from env var ``MEMPALACE_ENTITY_LANGUAGES`` (comma-separated)
@@ -604,7 +604,7 @@ class MempalaceConfig:
             return [str(s) for s in cfg]
         return ["en"]
 
-    def set_entity_languages(self, languages):
+    def set_entity_languages(self, languages: list) -> list:
         """Persist the entity-detection language list to ``config.json``."""
         normalized = [s.strip() for s in languages if s and s.strip()]
         if not normalized:
@@ -623,7 +623,7 @@ class MempalaceConfig:
         return normalized
 
     @property
-    def embedding_device(self):
+    def embedding_device(self) -> str:
         """Hardware device for the ONNX embedding model.
 
         Values: ``"auto"`` (default), ``"cpu"``, ``"cuda"``, ``"coreml"``,
@@ -640,7 +640,7 @@ class MempalaceConfig:
         return str(self._file_config.get("embedding_device", "auto")).strip().lower()
 
     @property
-    def embedding_model(self):
+    def embedding_model(self) -> str:
         """Embedding model identifier.
 
         Values: ``"minilm"`` (all-MiniLM-L6-v2 - English-only),
@@ -730,7 +730,7 @@ class MempalaceConfig:
             pass
 
     @property
-    def topic_tunnel_min_count(self):
+    def topic_tunnel_min_count(self) -> int:
         """Minimum number of overlapping confirmed topics required to create
         a cross-wing tunnel between two wings.
 
@@ -786,17 +786,17 @@ class MempalaceConfig:
         return DEFAULT_MAX_BACKUPS if coerced is None else coerced
 
     @property
-    def hook_silent_save(self):
+    def hook_silent_save(self) -> bool:
         """Whether the stop hook saves directly (True) or blocks for MCP calls (False)."""
         return self._file_config.get("hooks", {}).get("silent_save", True)
 
     @property
-    def hook_desktop_toast(self):
+    def hook_desktop_toast(self) -> bool:
         """Whether the stop hook shows a desktop notification via notify-send."""
         return self._file_config.get("hooks", {}).get("desktop_toast", False)
 
     @property
-    def hook_use_daemon(self):
+    def hook_use_daemon(self) -> bool:
         """Whether hooks should submit save/mine work to the opt-in daemon."""
         env_val = os.environ.get("MEMPALACE_HOOKS_DAEMON")
         if env_val is not None:
@@ -808,7 +808,7 @@ class MempalaceConfig:
             return value.lower() in ("true", "1", "yes", "on")
         return value == 1
 
-    def set_hook_setting(self, key: str, value: bool):
+    def set_hook_setting(self, key: str, value: bool) -> None:
         """Update a hook setting and write config to disk."""
         if "hooks" not in self._file_config:
             self._file_config["hooks"] = {}
@@ -819,7 +819,7 @@ class MempalaceConfig:
         except OSError:
             pass
 
-    def init(self):
+    def init(self) -> Path:
         """Create config directory and write default config.json if it doesn't exist."""
         self._config_dir.mkdir(parents=True, exist_ok=True)
         # Restrict directory permissions to owner only (Unix)
@@ -851,7 +851,7 @@ class MempalaceConfig:
                 pass
         return self._config_file
 
-    def save_people_map(self, people_map):
+    def save_people_map(self, people_map: dict) -> Path:
         """Write people_map.json to config directory.
 
         Args:

@@ -11,7 +11,7 @@ import os
 import re
 import sys
 import threading
-from typing import Optional
+from typing import Any, Generator, Optional
 
 from .backends import (
     BackendClosedError,
@@ -166,7 +166,7 @@ def get_collection(
     create: bool = True,
     backend: Optional[str] = None,
     _skip_identity_check: bool = False,
-):
+) -> Any:
     """Get the palace collection through the backend layer.
 
     ``_skip_identity_check`` bypasses the embedder-identity enforcement so the
@@ -207,7 +207,7 @@ def set_palace_embedder_identity(
     force: bool = False,
     backend: Optional[str] = None,
     collection_name: Optional[str] = None,
-):
+) -> tuple[Any, Any]:
     """Record (or force-override) a palace collection's embedder identity (RFC 001).
 
     Backs ``mempalace palace set-embedder``. Returns ``(old, new)`` identities.
@@ -263,7 +263,7 @@ def get_closets_collection(
     palace_path: str,
     create: bool = True,
     backend: Optional[str] = None,
-):
+) -> Any:
     """Get the closets collection — the searchable index layer."""
     return get_collection(
         palace_path,
@@ -332,7 +332,7 @@ def resolve_backend_name(palace_path: str, explicit: Optional[str] = None) -> st
     return selected
 
 
-def get_backend_for_palace(palace_path: str, explicit: Optional[str] = None):
+def get_backend_for_palace(palace_path: str, explicit: Optional[str] = None) -> Any:
     """Return the resolved backend instance for ``palace_path``."""
     return get_backend(resolve_backend_name(palace_path, explicit=explicit))
 
@@ -353,9 +353,9 @@ def _open_collection_or_explain(
     palace_path: str,
     *,
     collection_name: Optional[str] = None,
-    out=None,
-    opener=None,
-):
+    out: Any = None,
+    opener: Any = None,
+) -> Any:
     """Open the palace collection or print a state-specific message and return ``None``.
 
     For CLI and repair commands that want consistent, actionable user-facing
@@ -536,7 +536,14 @@ def _candidate_entity_words(text: str) -> list:
     return words
 
 
-def build_closet_lines(source_file, drawer_ids, content, wing, room, drawer_metas=None):
+def build_closet_lines(
+    source_file: str,
+    drawer_ids: list,
+    content: str,
+    wing: str,
+    room: str,
+    drawer_metas: list | None = None,
+) -> list:
     """Build compact closet pointer lines from drawer content.
 
     Returns a LIST of lines (not joined). Each line is one complete topic
@@ -678,7 +685,7 @@ def purge_file_closets(closets_col, source_file: str) -> None:
         logger.debug("Closet purge failed for %s", source_file, exc_info=True)
 
 
-def upsert_closet_lines(closets_col, closet_id_base, lines, metadata):
+def upsert_closet_lines(closets_col, closet_id_base: str, lines: list, metadata: dict) -> int:
     """Write topic lines to closets, packed greedily without splitting a line.
 
     Closets are deterministically numbered (``..._01``, ``..._02``, …) and
@@ -719,7 +726,7 @@ def upsert_closet_lines(closets_col, closet_id_base, lines, metadata):
 
 
 @contextlib.contextmanager
-def mine_lock(source_file: str):
+def mine_lock(source_file: str) -> Generator[None, None, None]:
     """Cross-platform file lock for mine operations.
 
     Prevents multiple agents from mining the same file simultaneously,
@@ -1023,7 +1030,7 @@ def _write_lock_holder(lock_file) -> None:
 
 
 @contextlib.contextmanager
-def mine_palace_lock(palace_path: str):
+def mine_palace_lock(palace_path: str) -> Generator[None, None, None]:
     """Per-palace non-blocking lock around the full `mine` pipeline.
 
     The per-file `mine_lock` only protects delete+insert interleave for a

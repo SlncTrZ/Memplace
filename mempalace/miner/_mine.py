@@ -267,7 +267,6 @@ def _mine_impl(
     except MineValidationError:
         raise
     except Exception as exc:
-
         print("\n\n  Mine aborted by exception.")
         print(f"    files_processed: {files_processed}/{len(files)}")
         print(f"    drawers_filed:   {total_drawers}")

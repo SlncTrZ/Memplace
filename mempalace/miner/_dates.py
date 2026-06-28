@@ -203,7 +203,7 @@ def _try_content_body_date(content: str) -> Optional[str]:
         if end_fm != -1:
             eol = stripped.find("\n", end_fm + 1)
             if eol != -1:
-                stripped = stripped[eol + 1:]
+                stripped = stripped[eol + 1 :]
 
     # Bounded split — maxsplit=10 caps the work to 10 newline scans rather
     # than splitting the entire file just to look at the first 10 lines.

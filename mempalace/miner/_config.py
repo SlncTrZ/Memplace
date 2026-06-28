@@ -50,6 +50,7 @@ def load_config(project_dir: str) -> dict:
     except (FileNotFoundError, OSError):
         wing_name = Path(project_dir).expanduser().resolve().name
         from ..config import normalize_wing_name
+
         wing_name = normalize_wing_name(wing_name)
         print(
             f"  Config file {config_path} could not be read "
