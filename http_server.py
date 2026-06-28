@@ -222,6 +222,26 @@ async def mcp_endpoint(request: Request):
         method = body.get("method")
         params = body.get("params", {})
         req_id = body.get("id")
+        
+        # Handle initialize in-process to avoid subprocess startup race
+        if method == "initialize":
+            from mempalace.version import __version__
+            _SUPPORTED_VERSIONS = ["2025-03-26", "2024-11-05"]
+            cv = params.get("protocolVersion", _SUPPORTED_VERSIONS[-1])
+            neg = cv if cv in _SUPPORTED_VERSIONS else _SUPPORTED_VERSIONS[0]
+            return JSONResponse(content={
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "protocolVersion": neg,
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "mempalace", "version": __version__},
+                },
+            })
+        
+        if method == "ping":
+            return JSONResponse(content={"jsonrpc": "2.0", "id": req_id, "result": {}})
+        
         response = await call_mcp(method, params, request_id=req_id)
         return JSONResponse(content=response)
     except Exception as e:
@@ -232,14 +252,6 @@ async def mcp_endpoint(request: Request):
         )
 
 
-@app.get("/mcp")
-async def mcp_sse_fallback(request: Request):
-    """SSE fallback for MCP SDK reconnect."""
-    from sse_starlette.sse import EventSourceResponse
-    async def _events():
-        yield {"event": "endpoint", "data": "/sse"}
-        yield {"event": "close", "data": ""}
-    return EventSourceResponse(_events())
 
 # --- SSE Transport (MCP Standard) ---
 
