@@ -21,7 +21,7 @@ No API key required. Exposed via MCP (Model Context Protocol) and CLI.
 | Khoản mục | Bản gốc | Bản này |
 |-----------|---------|--------|
 | **MCP Tools** | ~10 tools | **30 tools** — Palace R/W, Knowledge Graph, Navigation, Agent Diary, Hooks |
-| **Storage Backend** | Qdrant-only | **4 backends** — Chroma (default), Qdrant, PgVector, SQLite Exact |
+| **Storage Backend** | Qdrant-only | **3 backends** — Qdrant (default), PgVector, SQLite Exact |
 | **Embedding** | Ollama-dependent | **ONNX local** (zero-dep) + Ollama (optional) |
 | **Knowledge Graph** | ❌ Không có | Temporal entity-relationship graph (SQLite, valid_from/valid_to, invalidation) |
 | **Palace Navigation** | ❌ Không có | Room graph, BFS traversal, cross-wing tunnels, halls |
@@ -33,7 +33,7 @@ No API key required. Exposed via MCP (Model Context Protocol) and CLI.
 | **Entity System** | ❌ Không có | Auto-detect people/projects, entity code registry |
 | **CLI** | 5 subcommands | **12+ subcommands** (init, mine, search, split, wake-up, compress, status, repair, mcp, hook, instructions) |
 | **Modules** | 8 modules | **32 modules** — thêm repair, backups, sweeper, migrate, daemon, dynamics, exporter, fact_checker, format_miner, corpus_origin, dedup, hallways, ids, sync, wal, closet_llm, convo_scanner, diary_ingest, spellcheck, sources |
-| **Tests** | ~20 (lỗi import) | **139 tests pass** — protocol, backend registry, Chroma, Qdrant, error classes |
+| **Tests** | ~20 (lỗi import) | **128 tests pass** — protocol, backend registry, Qdrant, palace, config, AAAK |
 | **HTTP Server** | ❌ Không có | SSE transport + Qdrant query API + landing page |
 | **Security** | API key trong code | Pre-commit hook, env vars, `.gitignore`, không hardcoded IP |
 | **CLI Entry Point** | Không rõ ràng | `mempalace` + `mempalace-mcp` (pyproject.toml scripts) |
@@ -49,13 +49,13 @@ No API key required. Exposed via MCP (Model Context Protocol) and CLI.
 ├──────────────────────────────────────────────────┤
 │          mcp_server.py — 30 MCP tools            │
 ├──────────────────────────────────────────────────┤
-│   CLI (mempalace) ←→ Palace (ChromaDB / Qdrant) │
+│   CLI (mempalace) ←→ Palace (Qdrant)            │
 │                    ↕                             │
 │         Knowledge Graph (SQLite, temporal)       │
 │                    ↕                             │
 │      Palace Graph (room navigation, tunnels)     │
 ├──────────────────────────────────────────────────┤
-│   Backends: Chroma | Qdrant | PgVector | SQLite  │
+│   Backends: Qdrant | PgVector | SQLite Exact     │
 │   Embeddings: ONNX (local) | Ollama | external   │
 └──────────────────────────────────────────────────┘
 ```
@@ -145,7 +145,8 @@ mempalace split <dir>                 Split large transcript files
 mempalace wake-up                     Load palace into context
 mempalace compress                    Compress palace storage
 mempalace status                      Show palace status
-mempalace repair                      Rebuild vector index
+mempalace repair                      Qdrant snapshot backup & recovery
+mempalace check-qdrant                 Check Qdrant backend health
 mempalace mcp                         Show MCP setup command
 mempalace hook run                    Run hook logic (for harness)
 mempalace instructions <name>         Output skill instructions
@@ -164,7 +165,7 @@ pip install -e ".[dev]"
 |----------|---------|-------------|
 | `MEMPALACE_HOME` | `~/.mempalace` | Palace data directory |
 | `MEMPALACE_EMBEDDING_DEVICE` | `auto` | Embedding device: `cpu`, `cuda`, `dml`, `coreml` |
-| `PALACE_BACKEND` | `chroma` | Storage backend: `chroma`, `qdrant`, `pgvector`, `sqlite_exact` |
+| `PALACE_BACKEND` | `qdrant` | Storage backend: `qdrant`, `pgvector`, `sqlite_exact` |
 | `PALACE_PATH` | (auto) | Explicit palace path |
 | `QDRANT_URL` | `http://localhost:6333` | Qdrant server URL (qdrant backend) |
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama server URL (optional) |
@@ -173,8 +174,8 @@ pip install -e ".[dev]"
 
 | Backend | Purpose |
 |---------|---------|
-| **Chroma** (default) | Local vector store — zero config, no server needed |
-| **Qdrant** | Remote vector DB — for shared/multi-client palaces |
+| **Qdrant** (default) | Vector DB — local Qdrant or remote server |
+| **PgVector** | PostgreSQL vector extension — for existing Postgres deployments |
 | **PgVector** | PostgreSQL vector extension — for existing Postgres deployments |
 | **SQLite Exact** | Exact (brute-force) search — debug, tiny palaces, CI |
 
@@ -189,7 +190,8 @@ pip install -e ".[dev]"
 | Module | Description |
 |--------|-------------|
 | `cli.py` | CLI entry point — 12+ subcommands |
-| `mcp_server.py` | MCP server — 30 MCP tools |
+| `mcp_server.py` | MCP server handler (imports from `mcp_tools.py`) |
+| `mcp_tools.py` | 30 MCP tool definitions + handlers (tách từ monolith) |
 | `miner.py` | Project file ingest — chunks by paragraph |
 | `convo_miner.py` | Conversation ingest — exchange pairs, room detection |
 | `searcher.py` | Semantic search with filters |
@@ -216,9 +218,7 @@ python -m pytest tests/ -v
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/check_qdrant.py` | Check Qdrant collections status |
 | `scripts/pre_commit_check.py` | Pre-commit API key scanner |
-| `scripts/embed_all.py` | Full embedding pipeline |
 
 ## Security
 
@@ -239,15 +239,11 @@ AAAK (`dialect.py`) là định dạng **tóm tắt có cấu trúc (structured 
 
 | Hạn chế | Mô tả |
 |---------|-------|
-| **MCP Server monolith** | `mcp_server.py` ~2k lines — 30 tools + request handler trong 1 file |
-| **CLI monolith** | `cli.py` ~2k lines — 31 functions, quá nhiều responsibility |
+| **CLI monolith** | `cli.py` ~1.8k lines — nhiều subcommand trong 1 file |
 | **Thiếu type hints** | Hầu hết các module chưa có type annotations đầy đủ |
-| **Version history** | Lịch sử git đã qua force push / rebase — một số commit cũ có thể không trace được |
-| **Phụ thuộc ChromaDB** | Backend mặc định ChromaDB có native dependencies (onnxruntime) có thể gây lỗi trên một số platform |
+| **Test coverage** | Chỉ ~9% — cần integration tests với Qdrant thật |
 | **Documentation** | Chưa có API docs tự động (Sphinx/MkDocs) |
-| **CI/CD** | Chưa có GitHub Actions workflow tự động |
-| **HTTP Server coupling** | `http_server.py` hardcode Qdrant wings, không dùng backend abstraction |
-| **Scripts technical debt** | `scripts/` có 7 script Python riêng lẻ trùng logic với code chính |
+| **Chưa publish PyPI** | Chưa có release trên PyPI |
 
 ## License
 

@@ -4,8 +4,8 @@ Cảm ơn bạn đã quan tâm đến dự án MemPalace!
 
 ## Yêu cầu
 
-- Python 3.9+
-- Palace backend: ChromaDB (default, zero-config), Qdrant, PgVector, hoặc SQLite Exact
+- Python 3.10+
+- Palace backend: Qdrant (default), PgVector, SQLite Exact
 - Ollama (optional, cho embedding) | ONNX model local (default, zero-dependency)
 
 ## Thiết lập môi trường
@@ -24,14 +24,14 @@ python -m pytest tests/ -v
 
 ## Kiến trúc
 
-MemPalace sử dụng kiến trúc **Multi-Backend Palace**:
+MemPalace sử dụng kiến trúc **Qdrant Palace**:
 
 - **Palace** — stores verbatim content (drawers) in rooms within wings
-  - Backends: Chroma (default), Qdrant, PgVector, SQLite Exact
+  - Backends: Qdrant (default), PgVector, SQLite Exact
 - **Knowledge Graph** — temporal entity relationships (SQLite)
 - **Palace Graph** — room-to-room navigation, cross-wing tunnels
 
-Default backend (Chroma) không yêu cầu server, không API key.
+Default backend (Qdrant) — deploy với Docker Qdrant hoặc local server.
 
 ## Quy trình phát triển
 

@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.5.1] — 2026-06-28
+
+### Added
+
+- **CI/CD**: GitHub Actions workflow (Python 3.10/3.11/3.12/3.13)
+- **Test coverage**: 11 new tests — palace, config, backends, dialect, version
+- **`mcp_tools.py`**: Tách 30 MCP tool handlers khỏi monolith (mcp_server 2160→252 dòng)
+- **`check-qdrant`**: CLI subcommand kiểm tra Qdrant backend health
+- **CI badge** trong README
+
+### Removed
+
+- **ChromaDB** hoàn toàn: xoá `backends/chroma.py` (2,300 dòng), `migrate.py`, khỏi dependencies
+- **Scripts duplicate**: xoá 6 scripts (embed_all, embed_remaining, test_embed, test_search, check_qdrant, fix_threshold)
+- Python 3.9 support (qdrant-client yêu cầu >= 3.10)
+
+### Fixed
+
+- **embedding.py**: chromadb import → graceful fallback (try/except ImportError)
+- **http_server.py**: hardcoded Qdrant REST → backend abstraction
+- **repo public**: <https://github.com/SlncTrZ/Memplace>
+
+### Changed
+
+- Default backend: `chroma` → `qdrant`
+- `repair.py`: ChromaDB HNSW rebuild → Qdrant snapshot strategy
+- `searcher.py`: chroma.sqlite3 BM25/FTS5 paths → Qdrant text filtering
+- CLI: xoá `_maintenance_requires_chroma` guards
+- Requires Python >= 3.10
+
 ## [3.5.0] — 2026-06-28
 
 ### Added
