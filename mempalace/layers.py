@@ -19,7 +19,7 @@ and ~/.mempalace/identity.txt.
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional
 from collections import defaultdict
 
 from .config import MempalaceConfig
